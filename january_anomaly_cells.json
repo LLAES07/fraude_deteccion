@@ -1,0 +1,67 @@
+{
+  "cell_95": {
+    "type": "markdown",
+    "preview": "## **2.3 VARIABLES TEMPORALES**",
+    "full": "## **2.3 VARIABLES TEMPORALES**"
+  },
+  "cell_100": {
+    "type": "markdown",
+    "preview": "### 🧠  **Conclusiones**\n\n- Solo tenemos datos del año 2015\n- Hay compras desde Enero hasta mediados de diciembre\n- El ultimo registro fue en Agosto.",
+    "full": "### 🧠  **Conclusiones**\n\n- Solo tenemos datos del año 2015\n- Hay compras desde Enero hasta mediados de diciembre\n- El ultimo registro fue en Agosto."
+  },
+  "cell_104": {
+    "type": "code",
+    "preview": "ratio_mensual = df_merged.groupby('purchase_time_month')['class'].mean()\nz_scores = (ratio_mensual - ratio_mensual.mean()) / ratio_mensual.std()\nprint",
+    "full": "ratio_mensual = df_merged.groupby('purchase_time_month')['class'].mean()\nz_scores = (ratio_mensual - ratio_mensual.mean()) / ratio_mensual.std()\nprint(\"Meses con anomalías altas en fraude:\")\nprint(z_scores[z_scores > 2].sort_values(ascending=False))"
+  },
+  "cell_108": {
+    "type": "markdown",
+    "preview": "### 🧠  **Conclusiones**\n\n- Lo primero y más notorio es la diferencia abismal entre el primer mes de compras en relación con los demás meses. El primer",
+    "full": "### 🧠  **Conclusiones**\n\n- Lo primero y más notorio es la diferencia abismal entre el primer mes de compras en relación con los demás meses. El primer mes tiene > 76 % de fraudes mientras en los meses restante oscila entre el 6 a 4 %. Esta diferencia es demasiado grande y por lo tanto mirar el dataset a mayor porfundidad y tratar de entender que pasa en este mes es importante.\n\n- Según el z-score podemos confirmar que el primer mes de los datos es el mes donde se concentra la mayor cantidad de fraudes.\n- El primer mes si bien no son los meses de más compras tampoco es uno de los menores. La mayor cantidad de compras se centra entre mayo y agosto.\n- El `lift` (ratio fraude x mes / el ratio global o mean) para el primer mes confirma que el primer mes es anomalamente el mes con mayor porcentaje de fraudes.\n\n\nLa feature es interesante puesto que muestra que casi todo el fraude del dataset se encuentra en el primer mes. Esto es interesante puesto que esta diferencia tan grande en relación a los otros meses es demasiado alta. Encontrar que está pasando con esta y otras variables para responder que pasa es importante puesto que una diferencia tan grande tambien podria estar ligada a errores en el dataset si no se pueden respaldar de una forma coherente\n"
+  },
+  "cell_150": {
+    "type": "markdown",
+    "preview": "## **2.4 Country v/s variables temporales**",
+    "full": "## **2.4 Country v/s variables temporales**"
+  },
+  "cell_152": {
+    "type": "code",
+    "preview": "# Agrupando los países por el primer mes donde ocurrio la anomalía de fraudes\ndf_country_time_mes_uno = df_merged[df_merged['purchase_time_month']==1]",
+    "full": "# Agrupando los países por el primer mes donde ocurrio la anomalía de fraudes\ndf_country_time_mes_uno = df_merged[df_merged['purchase_time_month']==1].groupby([ 'country'])['class'].agg(['mean','count']).reset_index().sort_values('mean',ascending=False)\ndf_country_time_mes_uno.head(25)"
+  },
+  "cell_157": {
+    "type": "markdown",
+    "preview": "### 🧠  **OBSERVACIONES**\n\n- Para el primer mes hay paises que tienen más del 80 % de los datos como fraudes. Con 6 países con 100 % de fraude.\n- Para ",
+    "full": "### 🧠  **OBSERVACIONES**\n\n- Para el primer mes hay paises que tienen más del 80 % de los datos como fraudes. Con 6 países con 100 % de fraude.\n- Para los meses siguientes el % de fraude cae drásticamente. Existe turkmenistan donde hay 100 % fraude pero es un solo registro.\n- En la comparación entre ambos casos el fraude en el primer mes y en los meses venideros es claro observar que todos los países que anteriormente tenian mas del 80% de fraude una vez pasa el primer caen en forma proporcional y muy pronunciada con mas del 80 %.\n- En cuanto a los paises unknown son solo 33 observaciones que tienen 100% de fraude lo que nos indica que en general estos datos no corresponden a VPNs/proxies fraudulento \n\nEstas observaciones son importantes ya que deja claro que el fraude viene más influenciado por el tiempo que por el país u otra feature como anteriormente fue descartado. Por estas razones tratar de encontrar alguna relación temporal vs otra feature anteriormente ya observada no lo recomendaria puesto que ya ser observó que las relaciones más importantes se dieron con variables temporales."
+  },
+  "cell_161": {
+    "type": "markdown",
+    "preview": "## 2.6 **CONSLUSIONES FINALES**\n\n\n1. **TARGET DESBALANCEADO**\n\nMás del 90 % de las transacciones son legítimas y solo un ~ 9 % son fraude. Esto es un ",
+    "full": "## 2.6 **CONSLUSIONES FINALES**\n\n\n1. **TARGET DESBALANCEADO**\n\nMás del 90 % de las transacciones son legítimas y solo un ~ 9 % son fraude. Esto es un problema ya que al contruir el modelo diria que todo es legítimo. Es así que hay que escoger metricas diferentes a accuracy como AUC-PR y F1 soble la clase 1 (fraude)\n\n2. **Relación pobre de features originales**\n\nGran parte de las features originales se demostró que no ayudan en gran medida a poder diferenciar si existe o no fraude.\n\n\n| Feature | Cramér's V / Correlación | Veredicto |\n|---|---|---|\n| `purchase_value` | r = 0.001 | Descartada |\n| `age` | r = 0.007 | Descartada |\n| `sex` | V = 0.008 | Descartada |\n| `browser` | V = 0.017 | Descartada |\n| `source` | V = 0.021 | Uso marginal |\n\n\n> Nota: con n=151K casi todo resulta \"estadísticamente significativo\".\n> Lo que importa es el tamaño del efecto, no el p-value.\n\n\n### 4. El país no es una buena feature (aunque parecía serlo)\nHabía países con tasas de fraude del 80-100%, pero al cruzarlos con el mes\nde compra se vio que eso era completamente explicado por el evento de enero.\nEn los otros meses, esos mismos países tienen tasas normales (~4-5%).\n**El país no tiene efecto propio; era un espejo del problema temporal.**\n\n\n### 5. Enero 2015 fue un evento anómalo, no una regla\nEl 52% de todo el fraude del dataset ocurrió en enero, con una tasa del 76%.\nEl resto del año tuvo tasas de 4-5%.\n\nSin embargo, **no vamos a usar el mes como feature**. Si lo hiciéramos, el modelo\naprendería \"enero = fraude\", lo que no es generalizable: el próximo ataque podría\nser en julio. Lo que sí usamos son las causas del pico de enero: las features de\ncomportamiento (velocidad + reutilización de dispositivos), que aplican en cualquier\nmomento del año.\n\n\n### 6. Features finales para el modelo\n\n**Numéricas:**\n`purchase_value`, `age`, `time_to_purchase_sec`, `ip_count`, `device_count`,\n`users_per_ip`, `users_per_device`\n\n**Binarias (creadas en el EDA):**\n`is_ultra_fast` → 1 si la compra ocurrió ≤ 3 segundos del registro\n\n**Categóricas (requieren encoding):**\n`source`, `browser`, `sex`\n\n**Descartadas:** fechas crudas, mes, hora, día de semana, país, IPs crudas,\ndevice_id crudo, columnas de merge internas.\n\n\n\n### 7. Consideraciones para el modelado\n\n- **Split temporal, no random:** los datos son de 2015 y el fraude está concentrado\n  en enero. Un split random filtraría información del futuro al pasado (data leakage).\n  Hay que cortar por fecha: entrenar en los primeros meses, evaluar en los últimos.\n\n- **Manejo del desbalance:** empezar con `class_weight='balanced'` antes de recurrir\n  a SMOTE u oversampling. Es más limpio y menos propenso a introducir ruido.\n\n- **Tipo de modelo:** dado que los predictores más fuertes tienen relaciones no lineales\n  (el threshold de 3 segundos, la explosión de users_per_device), los modelos\n  basados en árboles (LightGBM, XGBoost, Random Forest) deberían funcionar muy bien.\n\n- **Métricas:** reportar AUC-ROC, AUC-PR y F1 sobre clase 1. Nunca reportar accuracy sola\n"
+  },
+  "cell_163": {
+    "type": "markdown",
+    "preview": "Ya fueron creadas las siguientes fratures en la exploración\n- `diferencia_signup_purchase_dias` la que relaciona los dias de diferencia entre que se r",
+    "full": "Ya fueron creadas las siguientes fratures en la exploración\n- `diferencia_signup_purchase_dias` la que relaciona los dias de diferencia entre que se registran y realizan la compra.\n- Features temporales para purchasey signup year, month, days etc.\n"
+  },
+  "cell_166": {
+    "type": "markdown",
+    "preview": "En esta primera etapa se construye un modelo base.\n\nPara ello se aplican tres decisiones principales:\n\n- Se utiliza un **split temporal** para evaluar",
+    "full": "En esta primera etapa se construye un modelo base.\n\nPara ello se aplican tres decisiones principales:\n\n- Se utiliza un **split temporal** para evaluar la capacidad de generalización real del modelo y evitar una validación optimista causada por mezclar períodos distintos del tiempo.\n\n- Las features históricas asociadas a IP y dispositivo se construyen únicamente a partir del conjunto de entrenamiento, evitando **data leakage** entre entrenamiento, validación y test.\n\n- La variable `time_to_purchase_sec` se transforma a `log_time_to_purchase_sec` para reducir su fuerte asimetría y estabilizar su escala.\n\n"
+  },
+  "cell_167": {
+    "type": "code",
+    "preview": "\ndf_model = df_merged.sort_values('purchase_time').reset_index(drop=True).copy()\n# Variable temporal final para modelado\ndf_model['log_time_to_purchas",
+    "full": "\ndf_model = df_merged.sort_values('purchase_time').reset_index(drop=True).copy()\n# Variable temporal final para modelado\ndf_model['log_time_to_purchase_sec'] = np.log1p(df_model['time_to_purchase_sec'].clip(lower=0))\n\n# Split temporal\n\nn = len(df_model)\ntrain = int(n*0.70)\nvalid = int(n*0.85)\n\ntrain_df = df_model.iloc[:train].copy()\nvalid_df = df_model.iloc[train:valid].copy()\ntest_df  = df_model.iloc[valid:].copy()\n"
+  },
+  "cell_171": {
+    "type": "markdown",
+    "preview": "Usé un split temporal para evaluar la capacidad de generalización real del modelo y evitar una validación optimista causada por mezclar el evento anóm",
+    "full": "Usé un split temporal para evaluar la capacidad de generalización real del modelo y evitar una validación optimista causada por mezclar el evento anómalo de enero entre entrenamiento y prueba.\nLas features históricas (ip_count, device_count, users_per_ip, users_per_device) fueron construidas usando solo información del conjunto de entrenamiento, evitando leakage entre splits.\nSe reemplazó la variable cruda time_to_purchase_sec por log_time_to_purchase_sec para reducir la asimetría extrema y estabilizar su escala"
+  },
+  "cell_174": {
+    "type": "markdown",
+    "preview": "Bajo validación temporal, el modelo presenta un desempeño cercano al azar. En particular, el evento anómalo de enero concentra una parte importante de",
+    "full": "Bajo validación temporal, el modelo presenta un desempeño cercano al azar. En particular, el evento anómalo de enero concentra una parte importante de la señal observada, pero esa estructura no se mantiene de forma estable en el resto del tiempo."
+  }
+}
