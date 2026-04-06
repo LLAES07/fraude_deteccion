@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 
 # Nombre archivo log
-LOG_NAME = f'{datetime.now().strftime('%d_%m_%Y_%H_%M_%S')}.log'
+LOG_NAME = f'{datetime.now().strftime("%d_%m_%Y_%H_%M_%S")}.log'
 
 # Ruta del directorio
 
@@ -24,4 +24,6 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-
+if __name__ == '__main__':
+    logging.info('logging comienza')
+    
