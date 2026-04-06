@@ -19,3 +19,20 @@ def mensaje_error_detalles(error: Exception):
     )
     logging.error(mensaje, exc_info=True)
     return mensaje
+
+
+class CustomException(Exception):
+    def __init__(self, error):
+        super().__init__(error)
+        self.error = mensaje_error_detalles(error)
+
+    def __str__(self):
+        return self.error
+
+if __name__ == '__main__':
+    
+    try:
+        b = 1/0
+    except Exception as e:
+        logging.info(f'Error de division: {e}')
+        raise CustomException(e)

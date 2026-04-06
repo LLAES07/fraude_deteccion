@@ -1,0 +1,7 @@
+[2026-04-06 12:25:48,633] root - INFO - Error de division: division by zero
+[2026-04-06 12:25:48,633] root - ERROR - Un error ocurrió en el archivo C:\Users\remoto\Documents\fraude_deteccion\src\exception.py en la línea 35 con el mensaje: division by zero
+Traceback (most recent call last):
+  File "C:\Users\remoto\Documents\fraude_deteccion\src\exception.py", line 35, in <module>
+    b = 1/0
+        ~^~
+ZeroDivisionError: division by zero
