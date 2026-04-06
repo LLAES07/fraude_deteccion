@@ -21,7 +21,8 @@ logging.basicConfig(
     filename=LOG_FILE_PATH,
     filemode='w',
     format='[%(asctime)s] %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.INFO,
+    encoding='utf-8'
 )
 
 if __name__ == '__main__':
