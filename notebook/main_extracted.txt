@@ -1,0 +1,1994 @@
+# **0. Importar librerias**
+
+---
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import os
+from pathlib import Path
+import seaborn as sns
+from scipy import stats
+from sklearn.model_selection import train_test_split
+
+
+---
+
+# **1. CARGA Y EXPLORACIÓN INICIAL**
+
+---
+
+main_folder = Path.cwd().parent
+
+data_folder = os.path.join(main_folder, 'data')
+
+
+csv_files = [f for f in os.listdir(data_folder) if f.endswith('.csv')]
+df, df_ip = [pd.read_csv(os.path.join(data_folder, file)) for file in csv_files[:2]]
+
+
+---
+
+df.head()
+
+---
+
+df_ip.head()
+
+---
+
+## 1.1 Revisión de columnas y tipo de datos
+
+---
+
+df.info()
+
+---
+
+### 💾 **Observaciones**
+
+
+Existe un total de **11 columnas** y **151112 registros**.
+    - 10 son variables independientes
+    - 1 variable dependiente (`class`)
+
+Existen 2 columnas que parecen estar relacionadas con fechas pero están como str: `signup_time`, `purchase_time`.
+
+Hay 5 columnas **numéricas** (`user_id`, `purchase_value`, `user_id`, `age`,`ip_address` y `class`), las 6 restantes son **str**.
+
+
+No existen datos nulos aparentes.
+
+
+
+
+
+---
+
+df_ip.info()
+
+---
+
+### 💾 **Observaciones**
+
+
+Existe un total de 3 columnas y 138846.
+
+- 2 son numéricas relacionadas con limites de ip
+- 1 de estas es str relacionada con el país de donde se efectuo la compra.
+
+
+
+📢 **Conclusión**
+
+Según lo señalado se debe revisar las columnas para ver si es necesario transformar alguna columna. En cuanto a las features relacionadas con tiempo deben ser cambiadas a su tipo correcto.
+
+Revisar si es que en realidad no hay nulos como datos mal inputados, categorias faltantes u otros errores también debe estar presente en el análisis.
+
+**Columnas a corregir**
+- signup_time y purchase_time son object --> convertir a datetime
+- source, browser, sex son object --> convertir a category (reducir memoria)
+
+
+---
+
+## 1.2 Revisión numérica somera
+
+---
+
+# No ver notación cientifica
+pd.set_option('display.float_format', '{:.2f}'.format)
+
+df.describe().round(2).T
+
+---
+
+df_ip.describe().round(2).T
+
+---
+
+### 💾 **Observaciones**
+
+`purchase_value`: 
+- **promedio**: 36.94 $
+- **std**: 18.32 $
+- **min**: 9 $
+- **max**: 154.00 $
+
+`age`:
+
+- **promedio**: 33 años
+- **std**: 8.62 años
+- **min**: 18 años
+- **max**: 76 años
+
+
+
+`lower_bound_ip_address`:
+
+- **min**: 16777216
+- **max**: 3758096128
+
+
+`upper_bound_ip_address`:
+
+- **min**: 16777471
+- **max**: 3758096383
+
+📢 **Conclusión**
+
+El 75 % de los datos esta por debajo de los 49 $ de `purchase_value`. Considerando esto y el valor del maximo es interesante ver cuantos datos están fuera del 75 % y que tan altos son.
+
+  - El std es bastante alto lo que debe ser principalmente por los valores ya nombrados.
+
+La edad promedio de los clientes es de  33 años.
+  - La edad mínima es 18 en sintonia con el negocio y la máxima de 76.
+  - El std es alto pero no desmezutado como el de la columna anterior
+
+
+En cuanto IP, podremos ver algo mas relacionandolo con el país.
+
+
+`df` y `df_ip` se relacionan entre las ip. Con el ip de `df` hay que encontrar dentro de que rango cae y se le puede asignar un país a esa ip.
+
+---
+
+##  1.4. Unir los dataframes
+
+---
+
+df_ordenado = df.sort_values('ip_address')
+df_ip_ordenado = df_ip.sort_values('lower_bound_ip_address')
+
+df_merged = pd.merge_asof(
+    df_ordenado,
+    df_ip_ordenado,
+    left_on='ip_address',
+    right_on='lower_bound_ip_address',
+    direction='backward'
+)
+
+---
+
+
+
+---
+
+df_merged.head()
+
+---
+
+**Detalle**
+
+Uso merge_assoft porque me permite hacer un merge utilizando rangos.
+La idea es ordenar ambos dataset por la columna donde quiera comparar los rangos.
+
+Utilizo `ip_address` en la tabla izquierda y `lower_bound_ip_address` en la derecha
+para buscar el valor más cercano o igual hacia atrás de cada IP.
+
+Aun así, esto dejará casos donde `ip_address` > `upper_bound_ip_address`.
+En esos casos el país se marca como 'Unknown' ya que la IP no pertenece a ese rango.
+
+
+---
+
+##  1.5. Duplicados o nulos?
+
+---
+
+df_merged.isnull().sum()
+
+---
+
+df_merged.duplicated().sum()
+
+---
+
+📢 Existen 634 valores nulos en el dataframe después de aplicar el merge. No existen duplicados
+
+---
+
+# **2. EDA**
+
+---
+
+## **2.1. Variables Numéricas**
+
+---
+
+
+tipo_de_datos = set([df_merged[col].dtype for col in df_merged.columns])
+
+print(f'Los tipos de datos presentes en el dataframe son :{tipo_de_datos}')
+
+---
+
+numeric_df = df_merged.select_dtypes(include=['int', 'float'])
+numeric_df
+
+---
+
+## 2.1.1 Target (Variable independiente)
+
+---
+
+numeric_df['class'].value_counts(normalize=True).rename(index={0: 'Legítimo (0)', 1: 'Fraudulento (1)'})*100
+
+---
+
+g = sns.countplot(data=numeric_df, x='class', hue='class', palette={0:'r', 1:'g'})
+plt.suptitle('Cantidad de registros legítimos v/s Fraudulentos')
+plt.xlabel('Classes')
+plt.ylabel('Cantidad')
+sns.axes_style('ticks')
+g.set_xticklabels(["Legítima", "Fraudulenta"])
+sns.despine(left=True)
+plt.tight_layout()
+plt.show()
+
+
+---
+
+### 📢 Detalle
+
+El dataframe tiene un desbalance alto entre la clase 0 y 1. La primera es totalmente prevalente con un 90.6 % de los datos mientras que la segúnda solo representa 9.4 % de los datos.
+
+-   Aplicar oversampling de la clase minoritaria parece una estrategia indispensable en los datos.
+
+---
+
+### **2.1.2 Purchase_value**
+
+---
+
+
+sns.kdeplot(data=numeric_df[numeric_df['class']==0].sample(min(10000, len(numeric_df[numeric_df['class']==0]))), x='purchase_value', fill=True) # Muestra para no congelar
+sns.kdeplot(data=numeric_df[numeric_df['class']==1], x='purchase_value', fill=True) # Distribución clase 1 con purchase_value
+plt.legend(['Legítimo', 'Fraudulento'])
+plt.suptitle('Distribución purchase_value')
+sns.despine()
+plt.tight_layout()
+plt.show()
+
+---
+
+pd.concat([
+    numeric_df[numeric_df['class']==0]['purchase_value'].describe(),
+    numeric_df[numeric_df['class']==1]['purchase_value'].describe()
+], axis=1, keys=['class = 0', 'class = 1']).T
+
+
+---
+
+### 💾 **Observaciones**
+
+Lo primero que salta a la luz es que ambas distribuciones son identicas o casi identicas compartiendo el mismo skewness a la derecha.
+
+Tanto la clase 0 como la clase 1 tienen casi los mismos datos en las métricas centrales.
+- El promedio, el std, el min los rangos cuartilicos son casi identicos.
+
+
+La similitud tan grande en las distribuciones me lleva a pensar que los movimientos fraudulentos siguen la distribución de los datos legales para no levantar sospechas. Serán las distribuciones iguales ?
+
+---
+
+valores_legitimos = numeric_df[numeric_df['class']==0]['purchase_value']
+valores_fraudulentos = numeric_df[numeric_df['class']==1]['purchase_value']
+
+---
+
+Considerando los gráficos las distribuciones se ven lejos de ser normal pero aplicaremos igualmente un test estadístico para conocer la normalidad o no. Debido al tamaño de muestra utilizamos D'Agostino-Pearson
+
+---
+
+stat1, p1 = stats.normaltest(valores_fraudulentos)
+stat2, p2 = stats.normaltest(valores_legitimos)
+print(f"Fraude:    p={p1:.4f}")
+print(f"No fraude: p={p2:.4f}")
+
+
+---
+
+**Observación**
+Datos no normales por lo que necesitamos un test no paramétricos apra saber si las distribuciones son iguales o no.
+
+---
+
+stat, p = stats.mannwhitneyu(valores_fraudulentos, valores_legitimos)
+print(f"stat={stat:.4f}, p={p:.4f}")
+
+---
+
+
+Por lo tanto el monto no influye si es fraude o no.
+
+---
+
+from scipy import stats
+
+stat, p = stats.ks_2samp(valores_fraudulentos, valores_legitimos)
+print(f"stat={stat:.4f}, p={p:.4f}")
+
+---
+
+Falla en rechazar la hipotesis nula de que las distribuciones son identicas. Por lo que lo más probable es que si lo sean como se ve arriba
+
+---
+
+**CONCLUSIÓN**
+
+Según lo observado tanto en los gráficos como en los diferentes tests estadisticos. El `purchase_value` no tiene evidencia estadisticamente relevante para ser un discriminante fuerte en si existira fraude o no.
+
+---
+
+### **2.1.3 Age**
+
+---
+
+pd.concat([
+    numeric_df[numeric_df['class']==0]['age'].describe(),
+    numeric_df[numeric_df['class']==1]['age'].describe()
+], axis=1, keys=['class = 0', 'class = 1']).T
+
+
+---
+
+En age para ambas clases igualmente el promedio, std y los rangos intercuartilicos son casi identicos.
+
+---
+
+sns.kdeplot(data=numeric_df[numeric_df['class']==0].sample(min(10000, len(numeric_df[numeric_df['class']==0]))), x='age', fill=True) # Muestra para no congelar
+sns.kdeplot(data=numeric_df[numeric_df['class']==1], x='age', fill=True) # Distribución clase 1 con age
+plt.legend(['Legítimo', 'Fraudulento'])
+plt.suptitle('Distribución age')
+sns.despine()
+plt.tight_layout()
+plt.show()
+
+---
+
+from scipy import stats
+
+age_fraude    = df[df['class'] == 1]['age'].values
+age_no_fraude = df[df['class'] == 0]['age'].values
+
+stat_mw, p_mw = stats.mannwhitneyu(age_fraude, age_no_fraude)
+stat_ks, p_ks = stats.ks_2samp(age_fraude, age_no_fraude)
+
+print(f"Mann-Whitney: stat={stat_mw:.4f}, p={p_mw:.4f}")
+print(f"KS test:      stat={stat_ks:.4f}, p={p_ks:.4f}")
+
+---
+
+print(f"Age media fraude:    {age_fraude.mean():.2f}")
+print(f"Age media no fraude: {age_no_fraude.mean():.2f}")
+print(f"Diferencia:          {abs(age_fraude.mean() - age_no_fraude.mean()):.2f} años")
+
+---
+
+Lo primero que salta a la vista que la distribución observada entre transaccciones fraudulentas y lefitimas parecen idénticas. Por otro lado los test estadisticos rechazan sus hipotesis nula, sugiriendo diferencias estadisticamente significantes entre estas clases.
+Esta aparente contradicción viene dada en parte por el gran tamaño muestral, que detectan diferencias mínimas que en realidad no tienen relevancia. Por lo tanto considerando las metricas centrales se puede observar que `age` no posee una significancia práctica como feature dominante para detectar fraudes.
+
+---
+
+## **2.2. Variables Str**
+
+---
+
+df_str = df_merged.select_dtypes(include=['object', 'str'])
+df_str.columns
+
+---
+
+df_merged.groupby('class')['sex'].size()
+
+---
+
+g = sns.catplot(data=df_merged, x='sex', col='class',kind='count', palette='pastel')
+g.set_xticklabels(['Hombre', 'Mujer'])
+sns.despine(left=True)
+g.set_axis_labels('Sexo')
+plt.show()
+
+
+---
+
+🔔 **Detalle**
+
+Es clara la diferencia en la cuenta entre ambos segmentos que obviamente viene dada por la proporcion desmezurada de los registros legítimos. En ambos casos son los hombres los que están presente en más registros. En general no se ve una diferencia para los movimientos legítimos y fraudulentos. Necesitamos conocer la cuenta por cada sexo y cada clase
+
+---
+
+cuenta_sex = pd.crosstab(df_merged['sex'], df_merged['class'])
+cuenta_sex
+
+---
+
+🔔 **Detalle**
+
+Como se menciona anteriormente la diferencia de cuentas es grande y se puede observar que al parecer son bastante proporcionales en cuanto a cantidad de hombres y mujeres en cada clase. Para confirmar necesitamos conocer los porcentajes.
+
+---
+
+cuenta_sex_norm = cuenta_sex.div(cuenta_sex.sum(1), axis=0)
+cuenta_sex_norm
+
+---
+
+ax = cuenta_sex_norm.plot(kind='bar', 
+                  stacked=True, 
+                  figsize=(8, 6),
+                  edgecolor='white')
+for p in ax.patches:
+    width, height = p.get_width(), p.get_height()
+    x, y = p.get_xy() 
+    if height > 0: # Solo poner texto si hay valor
+        ax.text(x + width/2, 
+                y + height/2, 
+                f'{height:.1%}', 
+                horizontalalignment='center', 
+                verticalalignment='center',
+                color='white',
+                fontweight='bold')
+
+sns.despine()
+plt.show()
+
+---
+
+🔔 **Detalle**
+
+Ahora con los porcentajes es claro ver que no hay una diferencia real entre legítimo y/o fraudulento. Esto nos indica que probablemente no es una feature que nos ayude en gran medida a predecir nuestro target
+
+
+---
+
+from scipy.stats import chi2_contingency
+
+# 1. Usamos el crosstab que ya conoces (SIN normalizar, con los conteos reales)
+tab_contingencia = pd.crosstab(df_merged['sex'], df_merged['class'])
+
+# 2. Ejecutamos el test
+chi2, p, dof, expected = chi2_contingency(tab_contingencia)
+
+print(f"Estadístico Chi2: {chi2:.4f}")
+print(f"P-valor: {p:.4e}")
+
+---
+
+import numpy as np
+
+n = tab_contingencia.sum().sum()
+min_dim = min(tab_contingencia.shape) - 1
+v_cramer = np.sqrt(chi2 / (n * min_dim))
+
+print(f"V de Cramer: {v_cramer:.4f}")
+
+---
+
+### 🧠  **Conclusiones**
+
+Según lo revisado es claro conocer que la feature sex no tiene un poder predictivo grande para una predicción. Lo siguiente se basa en lo siguiente:
+- **Proporciones similares:** Las relaciones entre ambas clases es casi la misma.
+- **El efecto del N grande:** Chi2 nos indica que no son independientes pero este resultado se encuentra enmascarado por nuestro n de muestra tan alto. Aplicando v de cramer podemos conocer si esta relación es significativa o en realidad está enmascarada por el tamaño de muestra. Considerando el valor obtenido nos queda claro que la dependencia observada por chi2 en realidad estaba influenciada por el numero de muestra y en realidad las variables son tan poco dependiente que en realidad son dependientes.
+
+Por lo tanto la variable `sex` no nos sirve como una variable predictiva fuerte
+
+---
+
+g = sns.catplot(data=df_merged, x='source', col='class',kind='count', palette='pastel')
+sns.despine(left=True)
+plt.show()
+
+
+---
+
+cuenta_source = pd.crosstab(df_merged['source'], df_merged['class'])
+cuenta_source
+
+---
+
+ptc_source = cuenta_source.div(cuenta_source.sum(1), axis=0)
+ptc_source
+
+---
+
+ax = ptc_source.plot(kind='bar', 
+                  stacked=True, 
+                  figsize=(8, 6),
+                  edgecolor='white')
+for p in ax.patches:
+    width, height = p.get_width(), p.get_height()
+    x, y = p.get_xy() 
+    if height > 0: # Solo poner texto si hay valor
+        ax.text(x + width/2, 
+                y + height/2, 
+                f'{height:.1%}', 
+                horizontalalignment='center', 
+                verticalalignment='center',
+                color='white',
+                fontweight='bold')
+
+sns.despine()
+plt.show()
+
+---
+
+from scipy.stats import chi2_contingency
+
+
+
+chi2, p, dof, expected = chi2_contingency(cuenta_source)
+
+print(f"Estadístico Chi2: {chi2:.4f}")
+print(f"P-valor: {p:.4e}")
+
+---
+
+n = cuenta_source.sum().sum()
+min_dim = min(cuenta_source.shape) - 1 
+v_cramer_source = np.sqrt(chi2 / (n * min_dim))
+
+print(f"V de Cramer (Source): {v_cramer_source:.4f}")
+
+---
+
+### 🧠  **Conclusiones**
+
+- La significancia estadística es muy pequeña (7.98 x 10^-15) con un chi2 de 64.92. Lo que viene a evidenciar que las diferencias entre canales no son casualidad.
+- El salto de 2% en la columna fraude de Direct puede estar causando este efecto en chi2.
+- Considerando la v de cramer de 0.0207 sigue indicando que esta significancia estadistica esta distorsionada por el tamaño de n y que es debil pero es el triple de fuerte que la del sexo.
+
+
+Si bien `source` tampoco es un predictor fuerte para nuestro target, tiene mejor poder predictivo que `sex`
+
+---
+
+g = sns.catplot(data=df_merged, x='browser', col='class',kind='count', palette='pastel')
+sns.despine(left=True)
+plt.show()
+
+
+---
+
+cuenta_browser = pd.crosstab(df_merged['browser'], df_merged['class'])
+cuenta_browser
+
+---
+
+ptc_browser = cuenta_browser.div(cuenta_browser.sum(1), axis=0)
+ptc_browser
+
+---
+
+
+ax = ptc_browser.plot(kind='bar', stacked=True, figsize=(8,6), edgecolor='white')
+
+for p in ax.patches:
+    width, height = p.get_width(), p.get_height()
+    x, y = p.get_xy() 
+    if height > 0: # Solo poner texto si hay valor
+        ax.text(x + width/2, 
+                y + height/2, 
+                f'{height:.1%}', 
+                horizontalalignment='center', 
+                verticalalignment='center',
+                color='white',
+                fontweight='bold')
+sns.despine(left=True)
+plt.legend(['Legítima','Fraude'])
+plt.show()
+
+
+---
+
+from scipy.stats import chi2_contingency
+
+
+
+chi2, p, dof, expected = chi2_contingency(cuenta_browser)
+
+print(f"Estadístico Chi2: {chi2:.4f}")
+print(f"P-valor: {p:.4e}")
+
+---
+
+n = cuenta_source.sum().sum()
+min_dim = min(cuenta_source.shape) - 1 
+v_cramer_source = np.sqrt(chi2 / (n * min_dim))
+
+print(f"V de Cramer (Source): {v_cramer_source:.4f}")
+
+---
+
+### 🧠  **Conclusiones**
+
+- Muy parecido a las variables anteriores y debido al desbalance importante de los datos en el primer grafico se aprecia que la escala es muy diferente pero se puede ver una relación muy similar entre ambas clases.
+- En las crosstab se puede apreciar de mejor forma que en general se sigue la misma proporcion de los datos dominando con un 90% los datos legítimos frente aproximadamente a un 10 % los fraudes.
+- Cada `browser` sigue una proporción similar tanto en fraude como en un movimiento legítimo.
+- La prueba de `chi2` rechaza la hipotesis nula de independencia con un valor de `p_value` bastante bajo indicando que existe mayor probabilidad de una relación dependiente. Aún asi debido a nuestro alto `n` esto puede ser un resultado sesgado. Según la `v de cramer` podemos decir que esta relación es baja y que lo más probable que las variables sean independientes.
+- Con todo esto y lo demás podemos decir que `browser` por si sola no es una buena feature para predecir si hay fraude o no.
+
+---
+
+df_merged.loc[df_merged['country'].isna()].head(10)
+
+---
+
+df_merged.loc[df_merged['country'].isna(), 'country'] = 'Unknown'
+
+---
+
+df_merged.loc[df_merged['country'].isna()]
+
+---
+
+grupo = df_merged.groupby(['class', 'country'])[['user_id']].agg(total=('user_id','count'))
+grupo_ordenado = grupo.sort_values(by=['class', 'total'], ascending=[True, False])
+top_10_por_clase = grupo_ordenado.groupby(level=0).head(10).reset_index()
+
+
+
+---
+
+g = sns.catplot(
+    data=top_10_por_clase,
+    x='total',
+    y='country',
+    col='class',
+    kind='bar',
+    palette='pastel',
+    sharex=False
+)
+
+   
+
+---
+
+pct_country_2 = pd.crosstab(df_merged['country'], df_merged['class'], normalize='index').round(3) * 100
+pct_country_2 = pct_country_2.rename(columns={0: 'no_fraude_%', 1: 'fraude_%'})
+pct_country_2['total_obs'] = df_merged['country'].value_counts()
+pct_country_2.sort_values(by='total_obs', ascending=False)
+
+---
+
+
+rate_unknown_countries = pct_country_2.loc[['Unknown'], :]
+rate_unknown_countries
+
+---
+
+#### 💿 **Fundamento**
+
+Debido a la cantidad baja de observaciones que no tienen país y considerando que  sigue de manera similar los datos de fraude y no_fraude, por lo anterior y simplicidad en el análisis imputar como `Unknown` es lo correcto
+
+---
+
+unknown_countries = grupo.loc[pd.IndexSlice[:, 'Unknown'], :]
+
+---
+
+unknown_countries
+
+---
+
+pct_country = pd.crosstab(df_merged['country'], df_merged['class'], normalize='index').round(3) * 100
+pct_country = pct_country.rename(columns={0: 'no_fraude_%', 1: 'fraude_%'})
+pct_country['total_obs'] = df_merged['country'].value_counts()
+pct_country = pct_country.sort_values('fraude_%', ascending=False).head(20)
+
+---
+
+pct_country
+
+---
+
+
+ax = sns.barplot(
+    data=pct_country,
+    x='fraude_%',
+    y=pct_country.index,
+    palette='pastel',
+    edgecolor='0.3'
+)
+
+# Añadir etiquetas con porcentaje
+for p in ax.patches:
+    width = p.get_width()
+    ax.annotate(
+        f'{width:.1f}%',
+        (width + 0.4, p.get_y() + p.get_height()/2),
+        va='center',
+        fontsize=9,
+        color='black'
+    )
+
+---
+
+import pandas as pd
+from scipy.stats import chi2_contingency
+
+# Tabla de contingencia observada
+tabla = pd.crosstab(df_merged['country'], df_merged['class'])  # o df_merged['fraude']
+
+print(tabla)
+
+---
+
+chi2, p, dof, expected = chi2_contingency(tabla)
+
+print(f"Estadístico chi-cuadrado: {chi2:.2f}")
+print(f"Grados de libertad: {dof}")
+print(f"p-valor: {p:.6f}")
+
+
+---
+
+
+n_total = tabla.sum().sum()          
+k = min(tabla.shape)              
+
+cramers_v = np.sqrt(chi2 / (n_total * (k - 1)))
+
+print(f"\nTamaño total de la muestra (n): {n_total:,}")
+print(f"Cramér's V: {cramers_v:.4f}")
+
+
+---
+
+### 🧠  **Conclusiones**
+
+- Lo primero relevante es que hay 634 datos en los que el país no existe devido a que en el `merge_asoft` no estaba en ningun rango.
+- A cada uno de estos valores se le inputo Unknown por simplicidad.
+- Los países unknown tienen un rate de fraude de solo el 9.8 %
+- Existen un total de 182 países de los cuales tanto en fraude como en legítimo USA es el que más valores tienen.
+- Si bien en el primer gráfico de barras se repite la misma frecuencia de países que son los que más fraudes tienen en la tabla de abajo podemos ver el porcentaje de fraude en cada uno de estos y para el top 10 se puede ver que es un porcentaje que ronda al 10 % la cantidad de fraudes.
+- Los países con mayor porcentaje de fraude en cambio en general son paises que no tiene tanta frecuencia en el dataset.
+- Chi2 dice que hay una relacion significativa de dependencia pero v de cramer dice que es debil esta relación. 
+
+
+Según lo anterior podemos ver que si bien no es fuerte predictor si podemos encontrar una relación con aquellos paises que el % de fraude es alto y quizas generar una columna que capte esta relación.
+
+
+---
+
+## **2.3 VARIABLES TEMPORALES**
+
+---
+
+df_merged['signup_time'] = pd.to_datetime(df_merged['signup_time'], format='%Y-%m-%d %H:%M:%S')
+df_merged['purchase_time'] = pd.to_datetime(df_merged['purchase_time'], format='%Y-%m-%d %H:%M:%S')
+
+---
+
+# signup_time
+
+df_merged['signup_time'] = pd.to_datetime(df_merged['signup_time'], format='%Y-%m-%d %H:%M:%S')
+df_merged['signup_time_month'] = df_merged['signup_time'].dt.month
+df_merged['signup_time_day_name'] = df_merged['signup_time'].dt.day_name()
+df_merged['signup_time_weekday'] = df_merged['signup_time'].dt.weekday
+df_merged['signup_time_hour_and_minute'] = df_merged['signup_time'].dt.strftime('%H:%M:%S')
+
+# purchase_time
+df_merged['purchase_time'] = pd.to_datetime(df_merged['purchase_time'], format='%Y-%m-%d %H:%M:%S')
+df_merged['purchase_time_month'] = df_merged['purchase_time'].dt.month
+df_merged['purchase_time_day_name'] = df_merged['purchase_time'].dt.day_name()
+df_merged['purchase_time_hour'] = df_merged['purchase_time'].dt.hour
+df_merged['purchase_time_weekday'] = df_merged['purchase_time'].dt.weekday
+
+
+
+---
+
+max_year = df_merged['purchase_time'].max()
+min_year = df_merged['purchase_time'].min()
+
+print(f'El año máximo de compra es: {max_year}')
+print(f'El año mínimo de compra es: {min_year}')
+print(f'Rango de años: {min_year} - {max_year}')
+
+---
+
+max_year = df_merged['signup_time'].max()
+min_year = df_merged['signup_time'].min()
+
+print(f'El año máximo de compra es: {max_year}')
+print(f'El año mínimo de compra es: {min_year}')
+print(f'Rango de años: {min_year} - {max_year}')
+
+---
+
+### 🧠  **Conclusiones**
+
+- Solo tenemos datos del año 2015
+- Hay compras desde Enero hasta mediados de diciembre
+- El ultimo registro fue en Agosto.
+
+---
+
+### **2.3.1 Purchase_time_month**
+
+---
+
+monthly_fraud_rate = df_merged.groupby('purchase_time_month')['class'].mean() * 100
+monthly_fraud_rate.plot(kind='line', marker='o', title='Tasa % de fraude por mes', ylabel='Fraude %')
+plt.show()
+
+---
+
+agrupado = df_merged.groupby(['purchase_time_month','class']).size().to_frame('total')
+# Convertir el MultiIndex a columnas normales
+agrupado_reset = agrupado.reset_index()
+
+sns.lineplot(
+    data=agrupado_reset,
+    x='purchase_time_month',
+    y='total',
+    hue='class',
+    style='class',          
+    markers=True,           
+    dashes=False,
+    linewidth=2.5,
+    markersize=8,
+)
+
+plt.title('Evolución mensual por clase')
+plt.xlabel('Mes de compra')
+plt.ylabel('Cantidad')
+plt.tight_layout()
+plt.show()
+
+---
+
+ratio_mensual = df_merged.groupby('purchase_time_month')['class'].mean()
+z_scores = (ratio_mensual - ratio_mensual.mean()) / ratio_mensual.std()
+print("Meses con anomalías altas en fraude:")
+print(z_scores[z_scores > 2].sort_values(ascending=False))
+
+---
+
+volumen_mes = df_merged['purchase_time_month'].value_counts().sort_index()
+prop_volumen_mes = (
+    df_merged['purchase_time_month']
+    .value_counts(normalize=True)
+    .sort_index()
+    .mul(100)
+)
+prop_volumen_mes
+
+---
+
+fraudes_mes_rate = pd.crosstab(df_merged['class'], df_merged['purchase_time_month'], normalize='columns').mul(100)
+ratio_total_mes = df_merged['class'].mean() * 100
+
+
+---
+
+conteos = pd.crosstab(df_merged['class'], df_merged['purchase_time_month'])
+
+
+volumen_mes = df_merged['purchase_time_month'].value_counts().sort_index()
+
+prop_volumen_mes = (
+    df_merged['purchase_time_month']
+    .value_counts(normalize=True)
+    .sort_index()
+    .mul(100)
+)
+
+fraud_rate_global = df_merged['class'].mean() * 100
+
+resumen_mes = pd.DataFrame({
+    'total_transacciones': volumen_mes,
+    'prop_volumen_%': prop_volumen_mes,
+    'fraudes': conteos.loc[1],
+    'no_fraudes': conteos.loc[0],
+    'fraud_rate_%': fraudes_mes_rate.loc[1]
+})
+
+resumen_mes['fraud_rate_global_%'] = fraud_rate_global
+resumen_mes['lift'] = resumen_mes['fraud_rate_%'] / fraud_rate_global
+
+resumen_mes
+
+---
+
+### 🧠  **Conclusiones**
+
+- Lo primero y más notorio es la diferencia abismal entre el primer mes de compras en relación con los demás meses. El primer mes tiene > 76 % de fraudes mientras en los meses restante oscila entre el 6 a 4 %. Esta diferencia es demasiado grande y por lo tanto mirar el dataset a mayor porfundidad y tratar de entender que pasa en este mes es importante.
+
+- Según el z-score podemos confirmar que el primer mes de los datos es el mes donde se concentra la mayor cantidad de fraudes.
+- El primer mes si bien no son los meses de más compras tampoco es uno de los menores. La mayor cantidad de compras se centra entre mayo y agosto.
+- El `lift` (ratio fraude x mes / el ratio global o mean) para el primer mes confirma que el primer mes es anomalamente el mes con mayor porcentaje de fraudes.
+
+
+La feature es interesante puesto que muestra que casi todo el fraude del dataset se encuentra en el primer mes. Esto es interesante puesto que esta diferencia tan grande en relación a los otros meses es demasiado alta. Encontrar que está pasando con esta y otras variables para responder que pasa es importante puesto que una diferencia tan grande tambien podria estar ligada a errores en el dataset si no se pueden respaldar de una forma coherente
+
+
+---
+
+### **2.3.2 signup_time_month**
+
+---
+
+signup_month = pd.crosstab(df_merged['signup_time_month'], df_merged['class'])
+signup_month
+
+---
+
+signup_month.plot(
+    kind='bar',
+    title='Cantidad de registros por meses según clase',
+    ylabel = 'Cantidad',
+    xlabel= 'Mes de registro'
+    )
+plt.legend(['no_fraude', 'fraude'])
+plt.show()
+
+---
+
+ratio_registros_mes = df_merged.groupby('signup_time_month')['class'].mean() * 100
+
+
+fig,ax = plt.subplots()
+
+
+ratio_registros_mes.plot(
+    kind='line',
+    marker='o',
+    title='Tasa % de fraude por mes de registro',
+    ylabel='Fraude %',
+    ax=ax
+)
+
+# agregar etiquetas
+for x, y in zip(ratio_registros_mes.index, ratio_registros_mes.values):
+    ax.text(x, y, f'{y:.1f}%', ha='center', va='bottom')
+
+plt.show()
+
+
+---
+
+### 🧠  **Conclusiones**
+
+- La cantidad de registros para el primer mes de registro al igual que el primer mes de compra es altísimo (31 %) en comparación a los demás meses (~ 4.6 %).
+- Esto sumado a lo visto que las compras del primer son altisimo entrega una evidencia importante que los fraudes estan hechos en su gran mayoría el primer mes entre que se registra y se compra.
+
+Con esto necesitamos encontrar la relación `purchase_time` - `signup_time`.
+
+
+
+---
+
+### **2.3.3 diferencia_signup_purchase_dias : Feature Eng**
+
+---
+
+
+df_merged['diferencia_signup_purchase_dias'] = (
+    (df_merged['purchase_time'] - df_merged['signup_time']) / np.timedelta64(1, 'D')
+)
+
+
+---
+
+bins = [
+    0,
+    1 / 86400,     # < 1 segundo
+    3 / 86400,     # 1–3 seg
+    10 / 86400,    # 3–10 seg
+    60 / 86400,    # 10 seg – 1 min
+    300 / 86400,   # 1–5 min
+    3600 / 86400,  # 5 min – 1 h
+    1,             # 1 h – 1 día
+    7,             # 1–7 días
+    float('inf')   # > 7 días
+]
+
+labels = [
+    "< 1 seg",
+    "1–3 seg",
+    "3–10 seg",
+    "10 seg – 1 min",
+    "1–5 min",
+    "5 min – 1 h",
+    "1 h – 1 día",
+    "1–7 días",
+    "> 7 días"
+]
+
+df_merged['tiempo_categoria'] = pd.cut(
+    df_merged['diferencia_signup_purchase_dias'],
+    bins=bins,
+    labels=labels,
+    right=False
+)
+
+---
+
+df_merged['tiempo_categoria'].value_counts()
+
+---
+
+timpocat_ctab = pd.crosstab(df_merged['tiempo_categoria'],
+            df_merged['class'])
+
+---
+
+df_plot = timpocat_ctab.reset_index()
+
+df_plot = df_plot.melt(id_vars='tiempo_categoria', var_name='class', value_name='conteo')
+
+
+---
+
+
+sns.catplot(
+    data=df_plot,
+    x='tiempo_categoria',
+    y='conteo',
+    col='class',
+    kind='bar',
+    sharey=False,
+    palette='pastel'
+)
+
+plt.xticks(rotation=45) # Rota las etiquetas si son muy largas
+plt.tight_layout()
+plt.show()
+
+---
+
+df_merged['tiempo_cat_reducido'] = (
+    df_merged['tiempo_categoria']
+    .astype(str)
+    .replace({
+        "< 1 seg": "ultra_fast",
+        "1–3 seg": "ultra_fast",
+        "3–10 seg": "ultra_fast",
+        "10 seg – 1 min": "ultra_fast",
+        "1–5 min": "fast",
+        "5 min – 1 h": "fast",
+        "1 h – 1 día": "medium",
+        "1–7 días": "slow",
+        "> 7 días": "slow"
+    })
+)
+tabla = pd.crosstab(df_merged['tiempo_cat_reducido'], df_merged['class'])
+chi2, p, dof, expected = chi2_contingency(tabla)
+
+
+print("Chi2:", chi2)
+print("p-value:", p)
+
+cramers_v = np.sqrt(chi2 / (n * (k - 1)))
+
+print("Cramér's V:", cramers_v)
+
+---
+
+### 🧠  **OBSERVACIONES**
+
+- La mayor parte de las compras fraudulentas se centran a los 1 y 3 segundos después de realizado el registro.
+- La otra mayor cantidad se encuentra en > 7 días pero esto representa todos los datos que vimos anteriormente donde en todos los meses oscila entre un 4 y un 5.6 %.
+- Chi2 rechaza la hipotesis nula por lo que lo más probable que exista una relación de dependencia entre la variable cat y el fraude lo que se ve ratificado por la v de cramer que en nuestro caso es alta.
+
+La velocidad entre registro y compra es tan rapida que lo más probable es que sea un sistema automatizado puesto que humanamente es dificil ser tan consistente en tantos datos. La v de cramer tan alta nos dice que sino es un sistema automatizado deberiamos dudar de los datos.
+
+
+
+
+
+
+
+---
+
+df_merged[df_merged['tiempo_cat_reducido'] == 'ultra_fast'].head()
+
+---
+
+### 🧠  **OBSERVACIONES**
+
+- Lo primero que se observa es una repeticion en la ip, device_id, source,browser para distintos user_ids.
+
+Esta relación puede estar dando pistas de porque estas compras son tan rápidas.
+
+---
+
+df_merged[df_merged['tiempo_cat_reducido'] == 'ultra_fast']['device_id'].value_counts()
+
+---
+
+serie_device_count = df_merged[df_merged['tiempo_cat_reducido'] == 'ultra_fast']['device_id'].value_counts()
+print(f'Combinaciones unicas de device: {serie_device_count[serie_device_count==1].shape[0]}')
+print(f'Combinaciones donde device aparece más de 4 veces: {serie_device_count[serie_device_count>=4].shape[0]}')
+
+---
+
+serie_device_count = df_merged[df_merged['tiempo_cat_reducido'] != 'ultra_fast']['device_id'].value_counts()
+print(f'Combinaciones unicas de device: {serie_device_count[serie_device_count==1].shape[0]}')
+print(f'Combinaciones donde device aparece más de 4 veces: {serie_device_count[serie_device_count>=4].shape[0]}')
+
+---
+
+### 🧠  **OBSERVACIONES**
+
+- Algo interesante a primera vista es que hay varios device_id que tiene mas de una ocurrencia.
+- Otra cosa es que solo hay 1 ocurrencia en donde no se repite el mismo `device`
+- La mayoria de los datos repiten `device` a lo menos 4 veces.
+- En datos donde el `tiempo_cat_reducido` es diferente a `ultra_fast` donde ocurre la mayor parte del fraude podemos ver que la gran parte de los usuarios tiene solo una combinacion unica de `device_id`
+
+---
+
+valores_asociados_fraude = df_merged[df_merged['tiempo_cat_reducido'] == 'ultra_fast'].groupby(
+    ['device_id','source', 'browser', 'ip_address']).size().sort_values(ascending=False)
+
+valores_asociados_fraude
+
+---
+
+valores_normales = df_merged[df_merged['tiempo_cat_reducido'] != 'ultra_fast'].groupby(
+    ['device_id','source', 'browser', 'ip_address']).size().sort_values(ascending=False)
+
+valores_normales
+
+---
+
+valores_asociados_fraude[valores_asociados_fraude==1].values
+
+---
+
+valores_asociados_fraude[valores_asociados_fraude>1].values.sum()
+
+---
+
+valores_normales[valores_normales==1].values.sum()
+
+---
+
+valores_normales[valores_normales>1].values.sum()
+
+---
+
+### 🧠  **OBSERVACIONES**
+
+- En datos donde la compra fue muy rápida y hubo fraude se puede ver que la combinación `device_id`, `source`, `browser` e `ip_adress` se repitió más de una vez en diferentes usuario casi el 99 % de las veces, mientras que fue única solo 1 vez.
+- En datos más normales donde ya no existe estas compras tan rápidas se observa que en todos los casos esta combinación fue unica para cada cliente.
+
+Por lo tanto en todas estas compras fraudulentas tenemos que la repetición de estas en diferente usuario es una flag grande junto con la velocidad entre registro y compra.
+
+---
+
+# número de transacciones por ip
+df_merged['ip_count'] = df_merged.groupby('ip_address')['user_id'].transform('count')
+
+# número de transacciones por device
+df_merged['device_count'] = df_merged.groupby('device_id')['user_id'].transform('count')
+
+# número de cuentas por ip
+df_merged['users_per_ip'] = df_merged.groupby('ip_address')['user_id'].transform('nunique')
+
+
+
+---
+
+df_merged['class_label'] = df_merged['class'].map({0: "no_fraude", 1: "fraude"})
+
+g =sns.catplot(
+    data=df_merged,
+    x =df_merged['ip_count'],
+    y =df_merged['tiempo_categoria'],
+    kind ='bar',
+    col='class_label',
+    sharey=False,
+    palette='tab20c'
+)
+plt.suptitle('Cantidad de veces que una IP aparecio en un usuario')
+g.tight_layout()
+g.set_axis_labels(y_var='Tiempo en comprar después del registro', x_var='total ip')
+g.set_titles(col_template="{col_name}")
+plt.show()
+
+---
+
+
+g =sns.catplot(
+    data=df_merged,
+    x =df_merged['device_count'],
+    y =df_merged['tiempo_categoria'],
+    kind ='bar',
+    col='class_label',
+    sharey=False,
+    palette='tab20c'
+)
+plt.suptitle('Cantidad de veces que un device aparecio en un usuario')
+g.tight_layout()
+g.set_axis_labels(y_var='Tiempo en comprar después del registro', x_var='total device')
+g.set_titles(col_template="{col_name}")
+plt.show()
+
+---
+
+df_merged['class_label'] = df_merged['class'].map({0: "no_fraude", 1: "fraude"})
+
+g =sns.catplot(
+    data=df_merged,
+    x =df_merged['users_per_ip'],
+    y =df_merged['tiempo_categoria'],
+    kind ='bar',
+    col='class_label',
+    sharey=False,
+    palette='tab20c'
+)
+plt.suptitle('Cantidad de veces que un usuario por ip ')
+g.tight_layout()
+g.set_axis_labels(y_var='Tiempo en comprar después del registro', x_var='usuario por ip')
+g.set_titles(col_template="{col_name}")
+plt.show()
+
+---
+
+### 🧠  **OBSERVACIONES**
+
+- Confirmamos con estos grágicos que para el primer mes entre los 1 a 3 segundos después del registro tanto `ip` y `device` son extremandamente altos.
+- Tambien re afirmamos que para todo los demás datos del dataset en general se da un unico `device` e ip
+
+---
+
+
+g =sns.catplot(
+    data=df_merged,
+    x =df_merged['ip_count'],
+    y ='class_label',
+    kind ='bar',
+    sharey=False,
+    palette='tab20c'
+)
+plt.suptitle('Promedio de  IP usuario')
+g.tight_layout()
+g.set_axis_labels(x_var='total ip')
+g.set_titles(col_template="{col_name}")
+plt.show()
+
+---
+
+
+g =sns.catplot(
+    data=df_merged,
+    x =df_merged['device_count'],
+    y ='class_label',
+    kind ='bar',
+    sharey=False,
+    palette='tab20c'
+)
+plt.suptitle('Promedio de Device por usuario')
+g.tight_layout()
+g.set_axis_labels( x_var='Cantidad de device')
+g.set_titles(col_template="{col_name}")
+plt.show()
+
+---
+
+### 🧠  **OBSERVACIONES**
+
+- Tanto `ip` como `device` tienen promedios bastante altos lo que principalmente está influenciado por el primer mes como vimos anteriormente. Esta diferencia entre fraude y no_fraude los convierte en buenos predictores para la variable objetivo
+
+---
+
+### **2.3.4 Purchase_time_hour**
+
+---
+
+plt.figure()
+sns.histplot(data=df_merged, x='purchase_time_hour', hue='class', bins=24, multiple='stack'
+)
+
+plt.title('Distribución de Compras por Hora del Día', fontsize=14)
+plt.xlabel('Hora de Compra', fontsize=12)
+plt.ylabel('Cantidad de Transacciones', fontsize=12)
+plt.legend(title='Clase', labels=['No Fraude', 'Fraude'])
+
+plt.tight_layout()
+plt.show()
+
+---
+
+### 🧠  **OBSERVACIONES**
+
+- Para la distribuciones de compra tanto para `no_fraude` como para `fraude` se observa que en general ambas siguen distribuciones similares con obviamente diferencias en su frecuencias pero en general no se logra apreciar una diferencia marcada.
+
+---
+
+df_hour = df_merged.groupby('purchase_time_hour')['class'].mean()
+
+plt.figure()
+df_hour.plot(kind='bar')
+
+plt.title('Proporción de Fraude por Hora del Día', fontsize=14)
+plt.xlabel('Hora de Compra', fontsize=12)
+plt.ylabel('Tasa de Fraude', fontsize=12)
+
+plt.tight_layout()
+plt.show()
+
+---
+
+df_ultra = df_merged[df_merged['tiempo_cat_reducido'] == 'ultra_fast']
+
+plt.figure()
+df_ultra['purchase_time_hour'].value_counts().sort_index().plot(kind='bar')
+
+plt.title('Distribución de Compras Ultra Rápidas por Hora', fontsize=14)
+plt.xlabel('Hora de Compra', fontsize=12)
+plt.ylabel('Cantidad de Eventos Ultra Fast', fontsize=12)
+
+plt.tight_layout()
+plt.show()
+
+---
+
+### 🧠  **OBSERVACIONES**
+
+- La tasa de fraude por hora no entrega ningun resultado concluyente ya que se ve que no hay un patron dominante. 
+- La distribución por hora de los eventos super rapidos registrados el primer mes tambien no entregan ningun resultado concluyente debido a una distribución que no tiene patrones significantes.
+
+---
+
+## **2.4 Country v/s variables temporales**
+
+---
+
+df_merged.groupby('country').size()
+
+---
+
+# Agrupando los países por el primer mes donde ocurrio la anomalía de fraudes
+df_country_time_mes_uno = df_merged[df_merged['purchase_time_month']==1].groupby([ 'country'])['class'].agg(['mean','count']).reset_index().sort_values('mean',ascending=False)
+df_country_time_mes_uno.head(25)
+
+---
+
+# Agrupando los países por los meses donde el fraude se mantuvo entre el 4 a 5%
+df_country_time_resto = df_merged[df_merged['purchase_time_month']!=1].groupby([ 'country'])['class'].agg(['mean','count']).reset_index().sort_values('mean',ascending=False)
+df_country_time_resto.head(25)
+
+---
+
+# Preparando dfs para generar un merge entre ambos dataset y generar la diferencia  
+
+df_mes1 = df_merged[df_merged['purchase_time_month'] == 1].groupby('country')['class'].agg(['mean', 'count']).reset_index().rename(columns={'mean': 'fraud_mes1', 'count': 'count_mes1'})
+
+df_resto = df_merged[df_merged['purchase_time_month'] != 1].groupby('country')['class'].agg(['mean', 'count']).reset_index().rename(columns={'mean': 'fraud_resto', 'count': 'count_resto'})
+
+
+---
+
+# Generando el merge
+df_compare = df_mes1.merge(df_resto, on='country', how='inner')
+
+# Creando una columna para la diferencia en el fraude entre el promedio del primer mes y el promedio del resto de meses
+df_compare['delta_fraud'] = df_compare['fraud_mes1'] - df_compare['fraud_resto']
+df_compare = df_compare.sort_values('delta_fraud', ascending=False)
+
+# Tomando solo los 15 primeros para simplicidad
+top = df_compare.head(15)
+
+plt.figure(figsize=(10,6))
+
+plt.barh(top['country'], top['delta_fraud'])
+plt.gca().invert_yaxis()
+
+plt.title('Disminución de la Tasa de Fraude: Mes 1 vs Resto', fontsize=14, weight='bold')
+plt.xlabel('Diferencia en Tasa de Fraude', fontsize=12)
+plt.ylabel('País', fontsize=12)
+
+plt.tight_layout()
+plt.show()
+
+---
+
+
+pct_ultra_country_2 = pd.crosstab(df_ultra['country'], df_ultra['class'], normalize='index').round(3) * 100
+pct_ultra_country_2 = pct_ultra_country_2.rename(columns={0: 'no_fraude_%', 1: 'fraude_%'})
+pct_ultra_country_2['total_obs'] = df_ultra['country'].value_counts()
+pct_ultra_country_2.sort_values(by='total_obs', ascending=False)
+rate_unknown_countries_ultra = pct_ultra_country_2.loc[['Unknown'], :]
+rate_unknown_countries_ultra
+
+---
+
+### 🧠  **OBSERVACIONES**
+
+- Para el primer mes hay paises que tienen más del 80 % de los datos como fraudes. Con 6 países con 100 % de fraude.
+- Para los meses siguientes el % de fraude cae drásticamente. Existe turkmenistan donde hay 100 % fraude pero es un solo registro.
+- En la comparación entre ambos casos el fraude en el primer mes y en los meses venideros es claro observar que todos los países que anteriormente tenian mas del 80% de fraude una vez pasa el primer caen en forma proporcional y muy pronunciada con mas del 80 %.
+- En cuanto a los paises unknown son solo 33 observaciones que tienen 100% de fraude lo que nos indica que en general estos datos no corresponden a VPNs/proxies fraudulento 
+
+Estas observaciones son importantes ya que deja claro que el fraude viene más influenciado por el tiempo que por el país u otra feature como anteriormente fue descartado. Por estas razones tratar de encontrar alguna relación temporal vs otra feature anteriormente ya observada no lo recomendaria puesto que ya ser observó que las relaciones más importantes se dieron con variables temporales.
+
+---
+
+## **2.5 Correlaciones** 
+
+---
+
+
+
+# time_to_purchase en segundos 
+df_merged['time_to_purchase_sec'] = df_merged['diferencia_signup_purchase_dias'] * 86400
+
+cols_corr = ['purchase_value', 'age', 'time_to_purchase_sec', 'class']
+
+corr_matrix = df_merged[cols_corr].corr()
+
+fig, ax = plt.subplots(figsize=(7, 5))
+sns.heatmap(
+    corr_matrix,
+    annot=True,
+    fmt='.3f',
+    cmap='coolwarm',
+    center=0,
+    vmin=-1, vmax=1,
+    linewidths=0.5,
+    ax=ax
+)
+ax.set_title('Correlación entre variables numéricas', fontsize=13)
+plt.tight_layout()
+plt.show()
+
+
+---
+
+### 💾 **Observaciones**
+
+La unica correlación relevante que se observa es la negativa -0.258 entre `time_to_purchase_sec` vs `class`. Negativa porque los fraudes tienen tiempos muy cortes (segundos) y los lefítimos tienen tiempos largos(días). A más tiempo menos fraude. Con spearman probablemente veriamos algo más alto.
+
+Por otro lado las dmeás relaciones son casi 0 lo que confirma los test estadisticos anteriores donde ninguna de estas ayuda a discriminar si existira o no fraude.
+
+---
+
+## 2.6 **CONSLUSIONES FINALES**
+
+
+1. **TARGET DESBALANCEADO**
+
+Más del 90 % de las transacciones son legítimas y solo un ~ 9 % son fraude. Esto es un problema ya que al contruir el modelo diria que todo es legítimo. Es así que hay que escoger metricas diferentes a accuracy como AUC-PR y F1 soble la clase 1 (fraude)
+
+2. **Relación pobre de features originales**
+
+Gran parte de las features originales se demostró que no ayudan en gran medida a poder diferenciar si existe o no fraude.
+
+
+| Feature | Cramér's V / Correlación | Veredicto |
+|---|---|---|
+| `purchase_value` | r = 0.001 | Descartada |
+| `age` | r = 0.007 | Descartada |
+| `sex` | V = 0.008 | Descartada |
+| `browser` | V = 0.017 | Descartada |
+| `source` | V = 0.021 | Uso marginal |
+
+
+> Nota: con n=151K casi todo resulta "estadísticamente significativo".
+> Lo que importa es el tamaño del efecto, no el p-value.
+
+
+### 4. El país no es una buena feature (aunque parecía serlo)
+Había países con tasas de fraude del 80-100%, pero al cruzarlos con el mes
+de compra se vio que eso era completamente explicado por el evento de enero.
+En los otros meses, esos mismos países tienen tasas normales (~4-5%).
+**El país no tiene efecto propio; era un espejo del problema temporal.**
+
+
+### 5. Enero 2015 fue un evento anómalo, no una regla
+El 52% de todo el fraude del dataset ocurrió en enero, con una tasa del 76%.
+El resto del año tuvo tasas de 4-5%.
+
+Sin embargo, **no vamos a usar el mes como feature**. Si lo hiciéramos, el modelo
+aprendería "enero = fraude", lo que no es generalizable: el próximo ataque podría
+ser en julio. Lo que sí usamos son las causas del pico de enero: las features de
+comportamiento (velocidad + reutilización de dispositivos), que aplican en cualquier
+momento del año.
+
+
+### 6. Features finales para el modelo
+
+**Numéricas:**
+`purchase_value`, `age`, `time_to_purchase_sec`, `ip_count`, `device_count`,
+`users_per_ip`, `users_per_device`
+
+**Binarias (creadas en el EDA):**
+`is_ultra_fast` → 1 si la compra ocurrió ≤ 3 segundos del registro
+
+**Categóricas (requieren encoding):**
+`source`, `browser`, `sex`
+
+**Descartadas:** fechas crudas, mes, hora, día de semana, país, IPs crudas,
+device_id crudo, columnas de merge internas.
+
+
+
+### 7. Consideraciones para el modelado
+
+- **Split temporal, no random:** los datos son de 2015 y el fraude está concentrado
+  en enero. Un split random filtraría información del futuro al pasado (data leakage).
+  Hay que cortar por fecha: entrenar en los primeros meses, evaluar en los últimos.
+
+- **Manejo del desbalance:** empezar con `class_weight='balanced'` antes de recurrir
+  a SMOTE u oversampling. Es más limpio y menos propenso a introducir ruido.
+
+- **Tipo de modelo:** dado que los predictores más fuertes tienen relaciones no lineales
+  (el threshold de 3 segundos, la explosión de users_per_device), los modelos
+  basados en árboles (LightGBM, XGBoost, Random Forest) deberían funcionar muy bien.
+
+- **Métricas:** reportar AUC-ROC, AUC-PR y F1 sobre clase 1. Nunca reportar accuracy sola
+
+
+---
+
+## **3. Feature engineer**
+
+---
+
+Ya fueron creadas las siguientes fratures en la exploración
+- `diferencia_signup_purchase_dias` la que relaciona los dias de diferencia entre que se registran y realizan la compra.
+- Features temporales para purchasey signup year, month, days etc.
+
+
+---
+
+users_per_device = (
+    df_merged.groupby('device_id')['user_id']
+    .nunique()
+    .reset_index()
+    .rename(columns={'user_id': 'users_per_device'})
+)
+df_merged = df_merged.merge(users_per_device, on='device_id', how='left')
+
+# 2. is_ultra_fast — captura el threshold de 1-3 seg sin depender del mes
+df_merged['is_ultra_fast'] = (df_merged['time_to_purchase_sec'] <= 3).astype(int)
+
+
+---
+
+# 4. MODELADO
+
+---
+
+En esta primera etapa se construye un modelo base.
+
+Para ello se aplican tres decisiones principales:
+
+- Se utiliza un **split temporal** para evaluar la capacidad de generalización real del modelo y evitar una validación optimista causada por mezclar períodos distintos del tiempo.
+
+- Las features históricas asociadas a IP y dispositivo se construyen únicamente a partir del conjunto de entrenamiento, evitando **data leakage** entre entrenamiento, validación y test.
+
+- La variable `time_to_purchase_sec` se transforma a `log_time_to_purchase_sec` para reducir su fuerte asimetría y estabilizar su escala.
+
+
+
+---
+
+
+df_model = df_merged.sort_values('purchase_time').reset_index(drop=True).copy()
+# Variable temporal final para modelado
+df_model['log_time_to_purchase_sec'] = np.log1p(df_model['time_to_purchase_sec'].clip(lower=0))
+
+# Split temporal
+
+n = len(df_model)
+train = int(n*0.70)
+valid = int(n*0.85)
+
+train_df = df_model.iloc[:train].copy()
+valid_df = df_model.iloc[train:valid].copy()
+test_df  = df_model.iloc[valid:].copy()
+
+
+---
+
+# Para el set de Entrenamiento
+print("--- DATOS DE TRAIN ---")
+print("Inicio:", train_df['purchase_time'].min())
+print("Fin:   ", train_df['purchase_time'].max())
+print("Total de filas:", len(train_df))
+print("Porcentaje de fraude:", train_df['class'].mean())
+print("\n")
+
+# Para el set de Validación
+print("--- DATOS DE VALID ---")
+print("Inicio:", valid_df['purchase_time'].min())
+print("Fin:   ", valid_df['purchase_time'].max())
+print("Total de filas:", len(valid_df))
+print("Porcentaje de fraude:", valid_df['class'].mean())
+print("\n")
+
+# Para el set de Test
+print("--- DATOS DE TEST ---")
+print("Inicio:", test_df['purchase_time'].min())
+print("Fin:   ", test_df['purchase_time'].max())
+print("Total de filas:", len(test_df))
+print("Porcentaje de fraude:", test_df['class'].mean())
+
+---
+
+
+
+def add_history_features(df_fit, df_apply):
+    # Conteos históricos aprendidos SOLO desde df_fit
+    ip_count_map = df_fit.groupby('ip_address').size()
+    device_count_map = df_fit.groupby('device_id').size()
+    users_per_ip_map = df_fit.groupby('ip_address')['user_id'].nunique()
+    users_per_device_map = df_fit.groupby('device_id')['user_id'].nunique()
+
+    df_out = df_apply.copy()
+
+    df_out['ip_count'] = df_out['ip_address'].map(ip_count_map).fillna(0)
+    df_out['device_count'] = df_out['device_id'].map(device_count_map).fillna(0)
+    df_out['users_per_ip'] = df_out['ip_address'].map(users_per_ip_map).fillna(0)
+    df_out['users_per_device'] = df_out['device_id'].map(users_per_device_map).fillna(0)
+
+    # Feature conductual: no depende del futuro
+    df_out['is_ultra_fast'] = (df_out['time_to_purchase_sec'] <= 3).astype(int)
+
+    return df_out
+
+# Train se construye con su propia historia
+train_df = add_history_features(train_df, train_df)
+
+# Valid y test usan solo historia del train
+valid_df = add_history_features(train_df, valid_df)
+test_df  = add_history_features(train_df, test_df)
+
+
+---
+
+
+features_numericas = [
+    'purchase_value',
+    'age',
+    'log_time_to_purchase_sec',
+    'ip_count',
+    'device_count',
+    'users_per_ip',
+    'users_per_device'
+]
+
+features_binarias = ['is_ultra_fast']
+
+features_categoricas = ['source', 'browser', 'sex']
+
+todas_las_features = features_numericas + features_binarias + features_categoricas
+
+X_train = train_df[todas_las_features].copy()
+y_train = train_df['class'].copy()
+
+X_valid = valid_df[todas_las_features].copy()
+y_valid = valid_df['class'].copy()
+
+X_test = test_df[todas_las_features].copy()
+y_test = test_df['class'].copy()
+
+print(X_train.shape, X_valid.shape, X_test.shape)
+print(X_train.columns)
+
+
+---
+
+Usé un split temporal para evaluar la capacidad de generalización real del modelo y evitar una validación optimista causada por mezclar el evento anómalo de enero entre entrenamiento y prueba.
+Las features históricas (ip_count, device_count, users_per_ip, users_per_device) fueron construidas usando solo información del conjunto de entrenamiento, evitando leakage entre splits.
+Se reemplazó la variable cruda time_to_purchase_sec por log_time_to_purchase_sec para reducir la asimetría extrema y estabilizar su escala
+
+---
+
+
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+
+preprocessor = ColumnTransformer(transformers=[
+    ('numerico', StandardScaler(), features_numericas),
+    ('binario', 'passthrough', features_binarias),
+    ('categorico', OneHotEncoder(
+        drop='first',
+        handle_unknown='ignore',
+        sparse_output=False
+    ), features_categoricas),
+], remainder='drop')
+
+
+---
+
+from sklearn.pipeline import Pipeline
+import lightgbm as lgb
+from sklearn.metrics import classification_report, roc_auc_score, average_precision_score
+
+pipeline = Pipeline(steps=[
+    ('prep', preprocessor),
+    ('model', lgb.LGBMClassifier(
+        class_weight='balanced',
+        n_estimators=500,
+        learning_rate=0.05,
+        num_leaves=31,
+        random_state=42,
+        n_jobs=-1,
+    ))
+])
+
+pipeline.fit(X_train, y_train)
+
+valid_prob = pipeline.predict_proba(X_valid)[:, 1]
+valid_pred = pipeline.predict(X_valid)
+
+print('VALIDACION')
+print(classification_report(y_valid, valid_pred, target_names=['Legítimo', 'Fraude']))
+print(f"AUC-ROC: {roc_auc_score(y_valid, valid_prob):.4f}")
+print(f"AUC-PR : {average_precision_score(y_valid, valid_prob):.4f}")
+
+
+---
+
+Bajo validación temporal, el modelo presenta un desempeño cercano al azar. En particular, el evento anómalo de enero concentra una parte importante de la señal observada, pero esa estructura no se mantiene de forma estable en el resto del tiempo.
+
+---
+
+## **4.1 Modelo sin Mes Enero (anomalo)**
+
+---
+
+df_sin_enero = df_model[df_model['purchase_time'].dt.month != 1].copy()
+
+from sklearn.model_selection import train_test_split
+
+train_df, test_df = train_test_split(df_sin_enero, 
+                                     test_size=0.2, 
+                                     stratify=df_sin_enero['class'], 
+                                     random_state=42)
+
+---
+
+train_df = add_history_features(train_df, train_df)
+test_df = add_history_features(train_df, test_df)
+print(f"Train: {len(train_df):,} filas | Fraude: {train_df['class'].mean():.2%}")
+print(f"Test:  {len(test_df):,} filas  | Fraude: {test_df['class'].mean():.2%}")
+
+---
+
+features_modelo = features_numericas + features_binarias + features_categoricas
+
+X_train = train_df[features_modelo]
+y_train = train_df['class']
+X_test = test_df[features_modelo]
+y_test = test_df['class']
+
+
+---
+
+
+scale = (y_train == 0).sum() / (y_train == 1).sum()
+
+pipeline_sin_enero = Pipeline(steps=[
+    ('prep',  preprocessor),
+    ('model', lgb.LGBMClassifier(
+                  scale_pos_weight=scale,
+                  n_estimators=500,
+                  learning_rate=0.05,
+                  num_leaves=31,
+                  random_state=42,
+                  n_jobs=-1,
+              ))
+])
+
+pipeline_sin_enero.fit(X_train, y_train)
+
+prob = pipeline_sin_enero.predict_proba(X_test)[:, 1]
+pred = pipeline_sin_enero.predict(X_test)
+
+print(classification_report(y_test, pred, target_names=['Legítimo', 'Fraude']))
+print(f"AUC-ROC: {roc_auc_score(y_test, prob):.4f}")
+print(f"AUC-PR:  {average_precision_score(y_test, prob):.4f}")
+
+---
+
+### ⚡**Observación**
+
+El modelo sin el mes anomalo de enero tiene un claro desbalance entre la clase positiva y negativa. Para los fraudes no logra ser mejor que el azar como predictor. Tanto las metricas principales como el `AUC-ROC` y `AUC-PR` indica que el modelo no logra poder encontrar mayores relaciones que puedan explicar el fraude en el dataset incluso sin enero. Es así como lo visto en el EDA se confirma y en general al parecer se ha exprimido lo más que se puede de los datos.
+
+
+---
+
+## **4.2 Modelo para detectar bots**
+
+---
+
+#  DETECTOR DE BOTS
+
+df_model = df_merged.sort_values('purchase_time').reset_index(drop=True).copy()
+df_model['log_time_to_purchase_sec'] = np.log1p(
+    df_model['time_to_purchase_sec'].clip(lower=0)
+)
+
+
+#  último 20% de enero = holdout para validar los bots
+df_enero = df_model[df_model['purchase_time'].dt.month == 1]
+enero_train_idx = df_enero.sample(frac=0.8, random_state=42).index
+enero_holdout_idx = df_enero.index.difference(enero_train_idx)
+
+enero_train   = df_model.loc[enero_train_idx]
+enero_holdout = df_model.loc[enero_holdout_idx]
+
+
+
+---
+
+df_resto = df_model[df_model['purchase_time'].dt.month != 1]
+
+
+n = len(df_resto)
+resto_train = df_resto.iloc[:int(n * 0.70)]   # Feb–Ago
+resto_test  = df_resto.iloc[int(n * 0.70):]   # Sep–Dic
+
+#  Train total = 80% enero + Feb–Ago (ordenado cronológicamente)
+train_total = pd.concat([enero_train, resto_train]).sort_values('purchase_time')
+
+# Aplicar add_history_features sin leakage
+train_total   = add_history_features(train_total, train_total)
+enero_holdout = add_history_features(train_total, enero_holdout)
+resto_test    = add_history_features(train_total, resto_test)
+
+print(f"Train:{len(train_total):,} filas | Fraude: {train_total['class'].mean():.2%}")
+print(f"Holdout bots:{len(enero_holdout):,} filas | Fraude: {enero_holdout['class'].mean():.2%}")
+print(f"Test normal:{len(resto_test):,} filas  | Fraude: {resto_test['class'].mean():.2%}")
+
+
+---
+
+# Sets de entrenamiento y testeo
+X_train = train_total[features_modelo]
+y_train = train_total['class']
+X_bots = enero_holdout[features_modelo]
+y_bots = enero_holdout['class']
+X_norm = resto_test[features_modelo]
+y_norm = resto_test['class']
+
+---
+
+scale = (y_train == 0).sum() / (y_train == 1).sum()
+
+pipeline_bots = Pipeline(
+    steps=[
+        ('prep', preprocessor),
+        ('model', lgb.LGBMClassifier(
+                    scale_pos_weight=scale,
+                    n_estimators=500,
+                    learning_rate=0.05,
+                    num_leaves=31, 
+                    random_state=42,
+                    n_jobs=-1,
+        )
+        )
+    ]
+)
+
+pipeline_bots.fit(X_train, y_train)
+
+
+
+---
+
+prob_bots = pipeline_bots.predict_proba(X_bots)[:, 1]
+prob_norm = pipeline_bots.predict_proba(X_norm)[:, 1]
+
+umbral = 0.5
+
+---
+
+print(classification_report(y_bots, (prob_bots>= umbral).astype(int),
+                      target_names=['Legítimo', 'Fraude/Bot']))
+
+print(f"AUC-ROC: {roc_auc_score(y_bots, prob_bots):.4f}")
+print(f"AUC-PR:  {average_precision_score(y_bots, prob_bots):.4f}")
+
+
+---
+
+falsas_alarmas = (prob_norm >= umbral).mean()
+print(f"Tasa de falsa alarma: {falsas_alarmas:.2%}  "
+      f"({int(falsas_alarmas * len(prob_norm))} alertas sobre {len(prob_norm):,} transacciones)")
+
+
+---
+
+
+df_merged['purchase_time'] = pd.to_datetime(df_merged['purchase_time'])
+
+df_enero = df_merged[df_merged['purchase_time'].dt.month == 1]
+
+valor_fraude_enero = df_enero[df_enero['class'] == 1]['purchase_value'].sum()
+
+tasa_falsa_alarma = 0.22  
+valor_legitimas_enero = df_enero[df_enero['class'] == 0]['purchase_value'].sum()
+costo_falsas_alarmas = valor_legitimas_enero * tasa_falsa_alarma
+
+ahorro_estimado = valor_fraude_enero - costo_falsas_alarmas
+
+print(f"Total del fraude evitado en Enero: ${valor_fraude_enero:,.2f}")
+print(f"Costo estimado por falsas alarmas (0.22%): ${costo_falsas_alarmas:,.2f}")
+print(f"Ahorro total estimado usando el Modelo 3: ${ahorro_estimado:,.2f}")
+
+---
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(8, 4))
+plt.hist(prob_norm, bins=50, edgecolor='k', color='steelblue')
+plt.axvline(umbral, color='red', linestyle='--', label=f'Umbral ({umbral})')
+plt.xlabel('Score de bot predicho')
+plt.title('Distribución de scores en período sin ataque (Sep–Dic)\n'
+          '→ idealmente todo concentrado cerca de 0')
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+---
+
+### 🎓**Observaciones**
+
+- El recall con 0.98 detecta el 98 % de los bots.
+- El AUC-PR es casi perfecto.
+- Existe solo un 22% de tasa de error.
+- El histograma muestra que los escore en sep-dic no son 0 sino cercano a 0.2 por lo que si bien comparten caracterísitica con los bots no llegan al umbral de serlo.
+
+---
+
+## **4.4 CONCLUSION MODELOS**
+
+
+#### **Modelo 1 split temporal**
+
+El train tenia casi la mayor parte del fraude en enero con un 11.4% que concentraba el ataque de "bots". El modelo entendio la relación de la transacción ultra rápida + el device reutilizado = fraude. Pero al evaluar el fraude que existia en los otros meses fuese malo o casi nulo. Como el modelo buscaba "bots" y no detecto el `AUC-PR 0.0048` fue bajísimo. Esto no quiere decir que el modelo sea malo, solo quiere decir que aprendió lo que tenia que aprender y no pudo exprimir más el dataset para encontrar otras relaciones en los otros meses.
+
+#### **Modelo 2 sin Enero (mes anomalo)**
+
+Intentar aislar el problema quitando enero pareceria una solución lógica para observar si los patrones de fraudes durante los otros meses tienen alguna relación importante. Que pasó después de entrenar? El `AUC-PR` es claro con un 0.048 nos indica que el modelo es casi identico al azar. Sin enero, ``is_ultra_fast`` es siempre 0, ``device_count`` y ``users_per_device`` son casi siempre 1, ``ip_count`` ídem. El modelo no tiene ninguna señal porque el fraude es inditinguible de una transacción legítima con las features que hay disponibles.
+
+#### **Modelo 3 detector de bots**
+
+El cambio claro fue aquí donde la idea fue que el modleo entendriera el patron del ataque de bots, para eso se incluyó el 80 % de enero en train para que el modelo aprenda las transacciones elgítimas normales como lo que es un bot. El 20 % restante de enero quedó como set de validación o holdout no visto. El resultado de esto tenia que responder dos preguntas. Detecta bots cuando hay un ataque? El holdout de enero con `AUC-PR` 99% con recall 98% responde que lo hace de manera excelente. La segunda pregunta es si genera falsas alaarmas cuando no hay ataque? Las falsas alarmas son de tan solo el 22 %.
+
+
+Los datos de los modelos tienen sentido según lo observado en el EDA la mayoria de las features no tenian poder preditivo real como `time_to_purchase`, `purchase_value`, `àge`, `sex`, `browser` y en especial `country` el cual demostraba que el alto riesgo venia altamente enmascarado por el mes de enero tirando una señal no genuina de fraude.
+
+
+
+---
+
+## **4.5 Recomendaciones y siguientes pasos**
+
+---
+
+1. Implementar reglas en tiempo real. Si hay un usuario que intenta comprar a los pocos segundos de registrarse o que tenga un dispositivo que ya tiene multiples usuarios registrados se debe enviar a un tipo de captchas manuales.
+
+2. Se necesitan nuevas features que aporten valor real a los datos y se pueda entender mejor el fraude cuando es "normal" durante el año y deje de ser ruido blanco. Tipo de tarjeta, validaciones de cvv, direccion facturación y envío, antiguedad del email o metricas de la pagina como clics, segundos en distintas paginas etc.
+
+3. Investigar que paso en Enero en profundidad. Saber si fue algo de la empresa que lanzo algo promocional o si fue mas bien algo aleatoreo.
+
+---
+
