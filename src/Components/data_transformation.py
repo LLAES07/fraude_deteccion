@@ -10,3 +10,8 @@ from sklearn.pipeline import Pipeline
 from sklearn.base import BaseEstimator, TransformerMixin
 from src.exception import CustomExecption
 from src.logger import logging
+
+
+@dataclass
+class DataTransformationConfig:
+    pass
