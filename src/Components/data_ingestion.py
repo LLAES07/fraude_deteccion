@@ -92,4 +92,5 @@ class DataIngestion:
 
 if __name__=='__main__':
     obj = DataIngestion()
+    train_data, valid_data, test_data = obj.iniciador_ingesta()
 

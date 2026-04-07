@@ -1,0 +1,6 @@
+[2026-04-07 14:56:41,011] root - INFO - Iniciando el proceso de ingesta de datos
+[2026-04-07 14:56:41,449] root - INFO - Dataset cargados y leídos con exito
+[2026-04-07 14:56:41,449] root - INFO - Iniciado el cruce de IP (merge asoft)
+[2026-04-07 14:56:41,506] root - INFO - Cruce completado y nulos imputados
+[2026-04-07 14:56:42,777] root - INFO - Iniciando el split temporal
+[2026-04-07 14:56:43,873] root - INFO - Data Ingestion completada con éxito
