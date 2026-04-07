@@ -53,7 +53,6 @@ class DataIngestion:
             df_merged['purchase_time'] = pd.to_datetime(df_merged['purchase_time'], format='%Y-%m-%d %H:%M:%S')
             df_merged['signup_time'] = pd.to_datetime(df_merged['signup_time'], format='%Y-%m-%d %H:%M:%S')
 
-            # 3. Orden temporal
             df_merged = df_merged.sort_values('purchase_time').reset_index(drop=True)
             
             # Asegurarse que la carpeta artifacts existe
@@ -62,8 +61,33 @@ class DataIngestion:
             # Guardar la raw data combinada
             df_merged.to_csv(self.ingestion_config.raw_data_path, index=False, header=True)
 
-        except:
-            pass
+            # 5. Split Temporal (Train: 70%, Valid: 15%, Test: 15%)
+            logging.info("Iniciando el split temporal")
+            n = len(df_merged)
+            train_idx = int(n * 0.70)
+            valid_idx = int(n * 0.85)
+
+            train_df = df_merged.iloc[:train_idx].copy()
+            valid_df = df_merged.iloc[train_idx:valid_idx].copy()
+            test_df  = df_merged.iloc[valid_idx:].copy()
+
+            # 5. Guardado de los splits en artifacts
+            train_df.to_csv(self.ingestion_config.train_data_path, index=False, header=True)
+            valid_df.to_csv(self.ingestion_config.valid_data_path, index=False, header=True)
+            test_df.to_csv(self.ingestion_config.test_data_path, index=False, header=True)
+
+            logging.info("Data Ingestion completada con éxito")
+
+            return (
+                self.ingestion_config.train_data_path,
+                self.ingestion_config.valid_data_path,
+                self.ingestion_config.test_data_path
+            )
+
+        except Exception as e:
+            raise CustomException(e, sys)
+
+
 
 
 if __name__=='__main__':
