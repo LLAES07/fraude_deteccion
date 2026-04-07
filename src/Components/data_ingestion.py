@@ -49,8 +49,19 @@ class DataIngestion:
 
             logging.info("Cruce completado y nulos imputados")
 
+            # 4. Conversión fechas al formato correcto 
+            df_merged['purchase_time'] = pd.to_datetime(df_merged['purchase_time'], format='%Y-%m-%d %H:%M:%S')
+            df_merged['signup_time'] = pd.to_datetime(df_merged['signup_time'], format='%Y-%m-%d %H:%M:%S')
 
+            # 3. Orden temporal
+            df_merged = df_merged.sort_values('purchase_time').reset_index(drop=True)
             
+            # Asegurarse que la carpeta artifacts existe
+            os.makedirs(os.path.dirname(self.ingestion_config.train_data_path), exist_ok=True)
+            
+            # Guardar la raw data combinada
+            df_merged.to_csv(self.ingestion_config.raw_data_path, index=False, header=True)
+
         except:
             pass
 
