@@ -39,3 +39,42 @@ class TimeFeaturesExtractor(BaseEstimator, TransformerMixin):
             return X_copy
         except Exception as e:
             raise CustomException(e, sys)
+
+
+
+class HistoricalFeaturesExtractor(BaseEstimator, TransformerMixin):
+    """
+    Transformador para crear features basadas en el histórico (ip, device).
+    Aprende solo del conjunto de entrenamiento (fit) para evitar data leakage.
+    """
+    def __init__(self):
+        self.ip_count_map = {}
+        self.device_count_map = {}
+        self.users_per_ip_map = {}
+        self.users_per_device_map = {}
+
+    def fit(self, X, y=None):
+        try:
+            logging.info("Calculando mapeos históricos desde datos de entrenamiento")
+            self.ip_count_map = X.groupby('ip_address').size().to_dict()
+            self.device_count_map = X.groupby('device_id').size().to_dict()
+            self.users_per_ip_map = X.groupby('ip_address')['user_id'].nunique().to_dict()
+            self.users_per_device_map = X.groupby('device_id')['user_id'].nunique().to_dict()
+            return self
+        except Exception as e:
+            raise CustomException(e, sys)
+
+    def transform(self, X):
+        try:
+            X_copy = X.copy()
+            # Mapeamos usando lo aprendido en fit. Si no existe (nuevo en test), rellenamos con 0
+            X_copy['ip_count'] = X_copy['ip_address'].map(self.ip_count_map).fillna(0)
+            X_copy['device_count'] = X_copy['device_id'].map(self.device_count_map).fillna(0)
+            X_copy['users_per_ip'] = X_copy['ip_address'].map(self.users_per_ip_map).fillna(0)
+            X_copy['users_per_device'] = X_copy['device_id'].map(self.users_per_device_map).fillna(0)
+            
+            # Eliminamos las columnas de IDs y país que concluiste que no aportan
+            X_copy.drop(columns=['ip_address', 'device_id', 'user_id', 'country'], inplace=True, errors='ignore')
+            return X_copy
+        except Exception as e:
+            raise CustomException(e, sys)
