@@ -1,0 +1,5 @@
+[2026-04-08 12:07:41,027] root - INFO - Lectura de train y test completada
+[2026-04-08 12:07:41,027] root - INFO - Obteniendo objeto de preprocesamiento
+[2026-04-08 12:07:41,027] root - INFO - Iniciando construcción del Data Transformer Object
+[2026-04-08 12:07:41,027] root - INFO - Pipeline de transformación de datos construido exitosamente
+[2026-04-08 12:07:41,027] root - ERROR - Error en la transformación de datos: CustomException.__init__() takes 2 positional arguments but 3 were given

@@ -79,7 +79,7 @@ class HistoricalFeaturesExtractor(BaseEstimator, TransformerMixin):
         except Exception as e:
             raise CustomException(e, sys)
         
-        
+
 
 class DataTransformation:
     def __init__(self):
@@ -141,3 +141,66 @@ class DataTransformation:
 
         except Exception as e:
             raise CustomException(e, sys)
+
+    def initiate_data_transformation(self, train_path, test_path):
+        try:
+            # Leer datos
+            train_df = pd.read_csv(train_path)
+            test_df = pd.read_csv(test_path)
+
+            logging.info("Lectura de train y test completada")
+            logging.info("Obteniendo objeto de preprocesamiento")
+
+            preprocessing_obj = self.get_data_transformer_object()
+
+            target_column_name = "class"
+
+            # Dividir variables independientes y dependientes
+            input_feature_train_df = train_df.drop(columns=[target_column_name], axis=1)
+            target_feature_train_df = train_df[target_column_name]
+
+            input_feature_test_df = test_df.drop(columns=[target_column_name], axis=1)
+            target_feature_test_df = test_df[target_column_name]
+
+            logging.info("Aplicando el objeto de preprocesamiento en train y test")
+
+            input_feature_train_arr = preprocessing_obj.fit_transform(input_feature_train_df)
+            input_feature_test_arr = preprocessing_obj.transform(input_feature_test_df)
+
+            # Reconstruir array combinando features transformadas y el target
+            train_arr = np.c_[
+                input_feature_train_arr, np.array(target_feature_train_df)
+            ]
+            test_arr = np.c_[input_feature_test_arr, np.array(target_feature_test_df)]
+
+            logging.info("Guardando el objeto de preprocesamiento.")
+
+            save_object(
+                file_path=self.data_transformation_config.preprocessor_obj_file_path,
+                obj=preprocessing_obj
+            )
+
+            return (
+                train_arr,
+                test_arr,
+                self.data_transformation_config.preprocessor_obj_file_path,
+            )
+        except Exception as e:
+            raise CustomException(e, sys)
+
+if __name__ == "__main__":
+    train_path = "artifacts/train.csv"
+    test_path = "artifacts/test.csv"
+    
+    data_transformer = DataTransformation()
+    
+    try:
+        train_arr, test_arr, preprocessor_path = data_transformer.initiate_data_transformation(train_path, test_path)
+        
+        print("Muestra del array de entrenamiento transformado (primeras 5 filas):")
+        print(train_arr[:5])
+        
+        logging.info("Transformación de datos finalizada correctamente.")
+    except Exception as e:
+        logging.error(f"Error en la transformación de datos: {e}")
+        print(f"Error: {e}")
