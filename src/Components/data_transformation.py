@@ -78,3 +78,66 @@ class HistoricalFeaturesExtractor(BaseEstimator, TransformerMixin):
             return X_copy
         except Exception as e:
             raise CustomException(e, sys)
+        
+        
+
+class DataTransformation:
+    def __init__(self):
+        self.data_transformation_config = DataTransformationConfig()
+
+    def get_data_transformer_object(self):
+        """
+        Este método crea el pipeline de preprocesamiento uniendo nuestras 
+        transformaciones personalizadas y el ColumnTransformer final.
+        """
+        try:
+            logging.info("Iniciando construcción del Data Transformer Object")
+            
+            # Definición de las columnas finales según tu notebook
+            features_numericas = [
+                'purchase_value',
+                'age',
+                'log_time_to_purchase_sec',
+                'ip_count',
+                'device_count',
+                'users_per_ip',
+                'users_per_device'
+            ]
+            
+            features_binarias = ['is_ultra_fast']
+            
+            features_categoricas = ['source', 'browser', 'sex']
+
+            # 1. Pipeline numérico (Escalado)
+            numerical_pipeline = Pipeline(steps=[
+                ("scaler", StandardScaler())
+            ])
+
+            # 2. Pipeline categórico (One Hot Encoding)
+            categorical_pipeline = Pipeline(steps=[
+                ("one_hot_encoder", OneHotEncoder(drop='first', handle_unknown='ignore', sparse_output=False))
+            ])
+
+            # 3. Column Transformer para aplicar escalado/OHE a las columnas respectivas
+            preprocessor = ColumnTransformer(
+                transformers=[
+                    ('num', numerical_pipeline, features_numericas),
+                    ('bin', 'passthrough', features_binarias),
+                    ('cat', categorical_pipeline, features_categoricas)
+                ],
+                remainder='drop' # Elimina automáticamente cualquier columna residual
+            )
+
+            # 4. PIPELINE COMPLETO
+            # Primero crea las features (Feature Engineering) y luego las preprocesa
+            full_pipeline = Pipeline(steps=[
+                ("time_features", TimeFeaturesExtractor()),
+                ("historical_features", HistoricalFeaturesExtractor()),
+                ("preprocessor", preprocessor)
+            ])
+
+            logging.info("Pipeline de transformación de datos construido exitosamente")
+            return full_pipeline
+
+        except Exception as e:
+            raise CustomException(e, sys)
