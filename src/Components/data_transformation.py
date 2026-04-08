@@ -73,7 +73,7 @@ class HistoricalFeaturesExtractor(BaseEstimator, TransformerMixin):
             X_copy['users_per_ip'] = X_copy['ip_address'].map(self.users_per_ip_map).fillna(0)
             X_copy['users_per_device'] = X_copy['device_id'].map(self.users_per_device_map).fillna(0)
             
-            # Eliminamos las columnas de IDs y país que concluiste que no aportan
+            # Eliminamos las columnas de IDs y país
             X_copy.drop(columns=['ip_address', 'device_id', 'user_id', 'country'], inplace=True, errors='ignore')
             return X_copy
         except Exception as e:
@@ -156,10 +156,10 @@ class DataTransformation:
             target_column_name = "class"
 
             # Dividir variables independientes y dependientes
-            input_feature_train_df = train_df.drop(columns=[target_column_name], axis=1)
+            input_feature_train_df = train_df.drop(columns=[target_column_name])
             target_feature_train_df = train_df[target_column_name]
 
-            input_feature_test_df = test_df.drop(columns=[target_column_name], axis=1)
+            input_feature_test_df = test_df.drop(columns=[target_column_name])
             target_feature_test_df = test_df[target_column_name]
 
             logging.info("Aplicando el objeto de preprocesamiento en train y test")
