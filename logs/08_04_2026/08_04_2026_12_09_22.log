@@ -1,0 +1,8 @@
+[2026-04-08 12:09:23,347] root - INFO - Lectura de train y test completada
+[2026-04-08 12:09:23,347] root - INFO - Obteniendo objeto de preprocesamiento
+[2026-04-08 12:09:23,347] root - INFO - Iniciando construcción del Data Transformer Object
+[2026-04-08 12:09:23,347] root - INFO - Pipeline de transformación de datos construido exitosamente
+[2026-04-08 12:09:23,354] root - INFO - Aplicando el objeto de preprocesamiento en train y test
+[2026-04-08 12:09:23,487] root - INFO - Calculando mapeos históricos desde datos de entrenamiento
+[2026-04-08 12:09:24,448] root - INFO - Guardando el objeto de preprocesamiento.
+[2026-04-08 12:09:24,531] root - INFO - Transformación de datos finalizada correctamente.

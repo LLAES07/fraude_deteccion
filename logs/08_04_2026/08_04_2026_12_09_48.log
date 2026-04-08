@@ -1,0 +1,16 @@
+[2026-04-08 12:09:48,949] root - INFO - Lectura de train y test completada
+[2026-04-08 12:09:48,950] root - INFO - Obteniendo objeto de preprocesamiento
+[2026-04-08 12:09:48,950] root - INFO - Iniciando construcción del Data Transformer Object
+[2026-04-08 12:09:48,950] root - INFO - Pipeline de transformación de datos construido exitosamente
+[2026-04-08 12:09:48,950] root - ERROR - Un error ocurrió en el archivo C:\Users\remoto\Documents\fraude_deteccion\src\Components\data_transformation.py en la línea 159 con el mensaje: Cannot specify both 'axis' and 'index'/'columns'
+Traceback (most recent call last):
+  File "C:\Users\remoto\Documents\fraude_deteccion\src\Components\data_transformation.py", line 159, in initiate_data_transformation
+    input_feature_train_df = train_df.drop(columns=[target_column_name], axis=1)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\remoto\Documents\fraude_deteccion\venv\Lib\site-packages\pandas\core\frame.py", line 6288, in drop
+    return super().drop(
+           ^^^^^^^^^^^^^
+  File "C:\Users\remoto\Documents\fraude_deteccion\venv\Lib\site-packages\pandas\core\generic.py", line 4631, in drop
+    raise ValueError("Cannot specify both 'axis' and 'index'/'columns'")
+ValueError: Cannot specify both 'axis' and 'index'/'columns'
+[2026-04-08 12:09:48,957] root - ERROR - Error en la transformación de datos: Un error ocurrió en el archivo C:\Users\remoto\Documents\fraude_deteccion\src\Components\data_transformation.py en la línea 159 con el mensaje: Cannot specify both 'axis' and 'index'/'columns'

@@ -38,7 +38,7 @@ class TimeFeaturesExtractor(BaseEstimator, TransformerMixin):
             X_copy.drop(columns=['signup_time', 'purchase_time', 'time_to_purchase_sec'], inplace=True, errors='ignore')
             return X_copy
         except Exception as e:
-            raise CustomException(e, sys)
+            raise CustomException(e)
 
 
 
@@ -62,7 +62,7 @@ class HistoricalFeaturesExtractor(BaseEstimator, TransformerMixin):
             self.users_per_device_map = X.groupby('device_id')['user_id'].nunique().to_dict()
             return self
         except Exception as e:
-            raise CustomException(e, sys)
+            raise CustomException(e)
 
     def transform(self, X):
         try:
@@ -77,7 +77,7 @@ class HistoricalFeaturesExtractor(BaseEstimator, TransformerMixin):
             X_copy.drop(columns=['ip_address', 'device_id', 'user_id', 'country'], inplace=True, errors='ignore')
             return X_copy
         except Exception as e:
-            raise CustomException(e, sys)
+            raise CustomException(e)
         
 
 
@@ -140,7 +140,7 @@ class DataTransformation:
             return full_pipeline
 
         except Exception as e:
-            raise CustomException(e, sys)
+            raise CustomException(e)
 
     def initiate_data_transformation(self, train_path, test_path):
         try:
@@ -186,7 +186,7 @@ class DataTransformation:
                 self.data_transformation_config.preprocessor_obj_file_path,
             )
         except Exception as e:
-            raise CustomException(e, sys)
+            raise CustomException(e)
 
 if __name__ == "__main__":
     train_path = "artifacts/train.csv"
