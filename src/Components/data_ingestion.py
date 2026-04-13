@@ -8,8 +8,8 @@ from dataclasses import dataclass
 @dataclass
 class DataIngestionConfig:
     train_data_path: str = os.path.join('artifacts', 'train.csv')
-    valid_data_path: str = os.path.join('artifacts', 'valid.csv')
-    test_data_path: str = os.path.join('artifacts', 'test.csv')
+    valid_data_path: str = os.path.join('artifacts', 'test_bots.csv')
+    test_data_path: str = os.path.join('artifacts', 'test_norm.csv')
     raw_data_path: str = os.path.join('artifacts', 'data.csv')
 
 class DataIngestion:
@@ -61,20 +61,26 @@ class DataIngestion:
             # Guardar la raw data combinada
             df_merged.to_csv(self.ingestion_config.raw_data_path, index=False, header=True)
 
-            # 5. Split Temporal (Train: 70%, Valid: 15%, Test: 15%)
-            logging.info("Iniciando el split temporal")
-            n = len(df_merged)
-            train_idx = int(n * 0.70)
-            valid_idx = int(n * 0.85)
+            # 5. Split Modelo 3: Detector de Bots
+            logging.info("Iniciando el split específico para el Detector de Bots")
+            
+            df_enero = df_merged[df_merged['purchase_time'].dt.month == 1]
+            n_enero = len(df_enero)
+            enero_train = df_enero.iloc[:int(n_enero * 0.80)]
+            enero_holdout = df_enero.iloc[int(n_enero * 0.80):]
 
-            train_df = df_merged.iloc[:train_idx].copy()
-            valid_df = df_merged.iloc[train_idx:valid_idx].copy()
-            test_df  = df_merged.iloc[valid_idx:].copy()
+            df_resto = df_merged[df_merged['purchase_time'].dt.month != 1]
+            n_resto = len(df_resto)
+            resto_train = df_resto.iloc[:int(n_resto * 0.70)]
+            resto_test = df_resto.iloc[int(n_resto * 0.70):]
 
-            # 5. Guardado de los splits en artifacts
-            train_df.to_csv(self.ingestion_config.train_data_path, index=False, header=True)
-            valid_df.to_csv(self.ingestion_config.valid_data_path, index=False, header=True)
-            test_df.to_csv(self.ingestion_config.test_data_path, index=False, header=True)
+            # Train total = 80% enero + Feb–Ago (ordenado cronológicamente)
+            train_total = pd.concat([enero_train, resto_train]).sort_values('purchase_time')
+
+            # 6. Guardado de los splits en artifacts
+            train_total.to_csv(self.ingestion_config.train_data_path, index=False, header=True)
+            enero_holdout.to_csv(self.ingestion_config.valid_data_path, index=False, header=True)
+            resto_test.to_csv(self.ingestion_config.test_data_path, index=False, header=True)
 
             logging.info("Data Ingestion completada con éxito")
 
