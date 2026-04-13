@@ -1,0 +1,25 @@
+[2026-04-13 12:19:44,414] root - INFO - Iniciando el Train Pipeline (Modelo Detector de Bots)
+[2026-04-13 12:19:44,414] root - INFO - Iniciando el proceso de ingesta de datos
+[2026-04-13 12:19:44,679] root - INFO - Dataset cargados y leídos con exito
+[2026-04-13 12:19:44,679] root - INFO - Iniciado el cruce de IP (merge asoft)
+[2026-04-13 12:19:44,729] root - INFO - Cruce completado y nulos imputados
+[2026-04-13 12:19:45,995] root - INFO - Iniciando el split específico para el Detector de Bots
+[2026-04-13 12:19:47,086] root - INFO - Data Ingestion completada con éxito
+[2026-04-13 12:19:47,374] root - INFO - Lectura de train, test bots y test normal completada
+[2026-04-13 12:19:47,374] root - INFO - Obteniendo objeto de preprocesamiento
+[2026-04-13 12:19:47,374] root - INFO - Iniciando construcción del Data Transformer Object
+[2026-04-13 12:19:47,374] root - INFO - Pipeline de transformación de datos construido exitosamente
+[2026-04-13 12:19:47,381] root - INFO - Aplicando el objeto de preprocesamiento en train y tests
+[2026-04-13 12:19:47,457] root - INFO - Calculando mapeos históricos desde datos de entrenamiento
+[2026-04-13 12:19:48,373] root - INFO - Guardando el objeto de preprocesamiento.
+[2026-04-13 12:19:48,432] root - INFO - Dividiendo los datos de entrenamiento y prueba (features y target)
+[2026-04-13 12:19:48,435] root - INFO - Configurando el modelo LGBMClassifier con scale_pos_weight: 9.01
+[2026-04-13 12:19:48,435] root - INFO - Entrenando el modelo LGBMClassifier...
+[2026-04-13 12:19:49,227] root - INFO - Guardando el modelo entrenado en la carpeta artifacts...
+[2026-04-13 12:19:49,253] root - INFO - Evaluando el modelo en el conjunto de prueba BOTS (Enero Holdout)...
+[2026-04-13 12:19:49,264] root - INFO - Rendimiento en Test BOTS - AUC-ROC: 0.9901
+[2026-04-13 12:19:49,264] root - INFO - Rendimiento en Test BOTS - AUC-PR: 0.9974
+[2026-04-13 12:19:49,265] root - INFO - Evaluando el modelo en el conjunto de prueba NORMAL (Resto de meses)...
+[2026-04-13 12:19:49,417] root - INFO - Rendimiento en Test NORMAL - AUC-ROC: 0.5042
+[2026-04-13 12:19:49,417] root - INFO - Rendimiento en Test NORMAL - AUC-PR: 0.0484
+[2026-04-13 12:19:49,418] root - INFO - Pipeline completado. Métricas: {'bots_roc_auc': 0.9900500766479303, 'bots_pr_auc': 0.997425127964555, 'norm_roc_auc': 0.504177724694241, 'norm_pr_auc': 0.04839266850217966}
