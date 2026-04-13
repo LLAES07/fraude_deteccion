@@ -142,13 +142,14 @@ class DataTransformation:
         except Exception as e:
             raise CustomException(e)
 
-    def initiate_data_transformation(self, train_path, test_path):
+    def initiate_data_transformation(self, train_path, test_bots_path, test_norm_path):
         try:
             # Leer datos
             train_df = pd.read_csv(train_path)
-            test_df = pd.read_csv(test_path)
+            test_bots_df = pd.read_csv(test_bots_path)
+            test_norm_df = pd.read_csv(test_norm_path)
 
-            logging.info("Lectura de train y test completada")
+            logging.info("Lectura de train, test bots y test normal completada")
             logging.info("Obteniendo objeto de preprocesamiento")
 
             preprocessing_obj = self.get_data_transformer_object()
@@ -159,19 +160,24 @@ class DataTransformation:
             input_feature_train_df = train_df.drop(columns=[target_column_name])
             target_feature_train_df = train_df[target_column_name]
 
-            input_feature_test_df = test_df.drop(columns=[target_column_name])
-            target_feature_test_df = test_df[target_column_name]
+            input_feature_test_bots_df = test_bots_df.drop(columns=[target_column_name])
+            target_feature_test_bots_df = test_bots_df[target_column_name]
 
-            logging.info("Aplicando el objeto de preprocesamiento en train y test")
+            input_feature_test_norm_df = test_norm_df.drop(columns=[target_column_name])
+            target_feature_test_norm_df = test_norm_df[target_column_name]
+
+            logging.info("Aplicando el objeto de preprocesamiento en train y tests")
 
             input_feature_train_arr = preprocessing_obj.fit_transform(input_feature_train_df)
-            input_feature_test_arr = preprocessing_obj.transform(input_feature_test_df)
+            input_feature_test_bots_arr = preprocessing_obj.transform(input_feature_test_bots_df)
+            input_feature_test_norm_arr = preprocessing_obj.transform(input_feature_test_norm_df)
 
             # Reconstruir array combinando features transformadas y el target
             train_arr = np.c_[
                 input_feature_train_arr, np.array(target_feature_train_df)
             ]
-            test_arr = np.c_[input_feature_test_arr, np.array(target_feature_test_df)]
+            test_bots_arr = np.c_[input_feature_test_bots_arr, np.array(target_feature_test_bots_df)]
+            test_norm_arr = np.c_[input_feature_test_norm_arr, np.array(target_feature_test_norm_df)]
 
             logging.info("Guardando el objeto de preprocesamiento.")
 
@@ -182,7 +188,8 @@ class DataTransformation:
 
             return (
                 train_arr,
-                test_arr,
+                test_bots_arr,
+                test_norm_arr,
                 self.data_transformation_config.preprocessor_obj_file_path,
             )
         except Exception as e:
@@ -190,12 +197,13 @@ class DataTransformation:
 
 if __name__ == "__main__":
     train_path = "artifacts/train.csv"
-    test_path = "artifacts/test.csv"
+    test_bots_path = "artifacts/test_bots.csv"
+    test_norm_path = "artifacts/test_norm.csv"
     
     data_transformer = DataTransformation()
     
     try:
-        train_arr, test_arr, preprocessor_path = data_transformer.initiate_data_transformation(train_path, test_path)
+        train_arr, test_bots_arr, test_norm_arr, preprocessor_path = data_transformer.initiate_data_transformation(train_path, test_bots_path, test_norm_path)
         
         print("Muestra del array de entrenamiento transformado (primeras 5 filas):")
         print(train_arr[:5])

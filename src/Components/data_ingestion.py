@@ -64,10 +64,12 @@ class DataIngestion:
             # 5. Split Modelo 3: Detector de Bots
             logging.info("Iniciando el split específico para el Detector de Bots")
             
+            from sklearn.model_selection import train_test_split
+            
             df_enero = df_merged[df_merged['purchase_time'].dt.month == 1]
-            n_enero = len(df_enero)
-            enero_train = df_enero.iloc[:int(n_enero * 0.80)]
-            enero_holdout = df_enero.iloc[int(n_enero * 0.80):]
+            enero_train, enero_holdout = train_test_split(
+                df_enero, test_size=0.20, random_state=42, stratify=df_enero['class']
+            )
 
             df_resto = df_merged[df_merged['purchase_time'].dt.month != 1]
             n_resto = len(df_resto)
