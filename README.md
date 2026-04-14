@@ -52,6 +52,16 @@ fraude_deteccion/
    pip install -r requirements.txt
    ```
 
+## 📊 Insights del Análisis Exploratorio (EDA)
+
+El análisis del conjunto de datos (detallado en el notebook `main.ipynb`) reveló patrones clave que guiaron el desarrollo del modelo:
+
+1. **Target Altamente Desbalanceado:** Más del 90% de las transacciones son legítimas y solo un ~9.4% son fraude. Por esto, el modelo evalúa su rendimiento utilizando AUC-PR y Recall.
+2. **Evento Anómalo (Ataque de Bots en Enero):** El 52% de todo el fraude del dataset ocurrió en Enero, con una tasa de fraude del 76% (en comparación con un 4-5% el resto del año). En lugar de usar el "mes" como variable, el modelo se enfoca en detectar las tácticas usadas en este evento para generalizar a futuros ataques.
+3. **Comportamiento Ultra Rápido:** La gran mayoría de las transacciones fraudulentas ocurrieron entre **1 y 3 segundos** después del registro de la cuenta. Un comportamiento humanamente imposible que delata sistemas automatizados.
+4. **Reutilización de IPs y Dispositivos:** En las transacciones rápidas y fraudulentas, se observó que la misma combinación de `device_id` e `ip_address` se repetía a través de múltiples cuentas de usuario.
+5. **Descarte de Variables sin Poder Predictivo:** Atributos tradicionales como el valor de compra (`purchase_value`), la edad (`age`), o el país de origen no mostraron diferencias estadísticas significativas entre clases y fueron descartados como predictores fuertes.
+
 ## 🧠 Feature Engineering y Transformación de Datos
 
 El pipeline de transformación (`src/Components/data_transformation.py`) está diseñado para evitar el *data leakage* (fuga de datos) e incluye transformadores personalizados:
