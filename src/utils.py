@@ -15,4 +15,15 @@ def save_object(file_path, obj):
             pickle.dump(obj, file_obj)
 
     except Exception as e:
-        raise CustomException(e)
+        raise CustomException(e, sys)
+
+def load_object(file_path):
+    """
+    Carga un objeto de Python (ej. modelo o preprocesador) desde disco usando pickle.
+    """
+    try:
+        with open(file_path, "rb") as file_obj:
+            return pickle.load(file_obj)
+
+    except Exception as e:
+        raise CustomException(e, sys)
